@@ -1,0 +1,115 @@
+{
+  "conditions": [
+    {
+      "name": "subjectId",
+      "value": "1",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "EQUAL"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "LIKE"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "LEFT_LIKE"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "RIGHT_LIKE"
+      }
+    },
+    {
+      "name": "status",
+      "value": "1,2,3",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "IN"
+      }
+    },
+    {
+      "name": "status",
+      "value": "1,2,3",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "NOT_IN"
+      }
+    },
+    {
+      "name": "name",
+      "value": "张三,李四",
+      "extInfo": {
+        "operate": "NOT_IN"
+      }
+    },
+    {
+      "name": "createTime",
+      "value": "2024-11-08,2024-11-09",
+      "extInfo": {
+        "operate": "BETWEEN_AND"
+      }
+    },
+    {
+      "extInfo": {
+        "type": "complex",
+        "composeType": "OR",
+        "subConditions": [
+          {
+            "name": "subjectId",
+            "value": "1",
+            "extInfo": {
+              "valueType": "number"
+            }
+          },
+          {
+            "name": "subjectId",
+            "value": "2",
+            "extInfo": {
+              "valueType": "number"
+            }
+          },
+          {
+            "extInfo": {
+              "type": "complex",
+              "composeType": "OR",
+              "subConditions": [
+                {
+                  "name": "subjectId",
+                  "value": "3",
+                  "extInfo": {
+                    "valueType": "number"
+                  }
+                },
+                {
+                  "name": "subjectId",
+                  "value": "4",
+                  "extInfo": {
+                    "valueType": "number"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "composeType": "AND",
+  "sorts": [
+    {
+      "name": "createTime",
+      "type": "ASC",
+      "order": 1
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "conditions": [
+    {
+      "name": "id",
+      "value": "1",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "EQUAL"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "LIKE"
+      }
+    },
+    {
+      "name": "age",
+      "value": "19",
+      "extInfo": {
+        "valueType": "number"
+      }
+    }
+  ],
+  "composeType": "AND",
+  "sorts": [
+    {
+      "name": "id",
+      "type": "ASC",
+      "order": 1
+    }
+  ]
+}

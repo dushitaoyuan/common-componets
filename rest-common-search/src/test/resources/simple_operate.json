@@ -1,0 +1,77 @@
+{
+  "conditions": [
+    {
+      "name": "id",
+      "value": "1",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "EQUAL"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "LIKE"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "LEFT_LIKE"
+      }
+    },
+    {
+      "name": "name",
+      "value": "name",
+      "extInfo": {
+        "operate": "RIGHT_LIKE"
+      }
+    },
+    {
+      "name": "create_time",
+      "value": "2024-12-13,2024-12-14",
+      "extInfo": {
+        "operate": "BETWEEN_AND"
+      }
+    },
+    {
+      "name": "id",
+      "value": "1,2,3",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "IN"
+      }
+    },
+    {
+      "name": "name",
+      "value": "张三,李四",
+      "extInfo": {
+        "operate": "IN"
+      }
+    },
+    {
+      "name": "id",
+      "value": "1,2,3",
+      "extInfo": {
+        "valueType": "number",
+        "operate": "NOT_IN"
+      }
+    }
+  ],
+  "composeType": "AND",
+  "sorts": [
+
+    {
+      "name": "age",
+      "type": "DESC",
+      "order": 2
+    },
+    {
+      "name": "id",
+      "type": "ASC",
+      "order": 1
+    }
+  ]
+}
