@@ -9,9 +9,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.Field;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.*;
 
 
 /**
@@ -39,7 +39,7 @@ public class SearchConditionBeanUtil {
                     return;
                 }
                 field.setAccessible(true);
-                ReflectionUtils.setField(field, newInstance, toFieldType(field.getType(), filedCondition.getValue()));
+                ReflectionUtils.setField(field, newInstance, toFieldType(field, field.getType(), filedCondition.getValue()));
             });
 
             // 如果条件对象存在字段[sorts]自动填充排序条件
@@ -58,18 +58,17 @@ public class SearchConditionBeanUtil {
         }
     }
 
-    public static <T> PageRequest<T> convertToPageQuery(
-            Class<T> clazz, PageRequest<SearchCondition> pageRequest) {
+    public static <T> PageRequest<T> convertToPageQuery(Class<T> clazz, PageRequest<SearchCondition> pageRequest) {
         T newQuery = convertSearchBean(clazz, pageRequest.getQuery());
         return new PageRequest<>(pageRequest.getPageNum(), pageRequest.getPageSize(), newQuery);
     }
 
     @SuppressWarnings("all")
-    private static <T> T toFieldType(Class<?> type, String fieldValue) {
+    private static <T> T toFieldType(Field field, Class<?> type, String fieldValue) {
         /**
          * 自动转换支持的类型
          */
-        if (type.isAssignableFrom(String.class)) {
+        if (type.isAssignableFrom(String.class) || type.isInstance(fieldValue)) {
             return (T) fieldValue;
         }
         if (type.isAssignableFrom(Integer.class)) {
@@ -87,8 +86,36 @@ public class SearchConditionBeanUtil {
         if (type.isAssignableFrom(Date.class)) {
             return (T) new Date(Long.parseLong(fieldValue));
         }
-        return (T) fieldValue;
+        if (Collection.class.isAssignableFrom(type)) {
+            Type genericType = field.getGenericType();
+            if (genericType instanceof ParameterizedType) {
+                ParameterizedType parameterizedType = (ParameterizedType) genericType;
+                Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+                if (actualTypeArguments.length > 0) {
+                    Class<?> collectionItemType = (Class<?>) actualTypeArguments[0];
+                    String[] items = fieldValue.split(",");
+                    return (T) createCollectionInstance(field.getType(), Arrays.asList(items), collectionItemType);
+                }
+            }
+
+        }
+        throw new IllegalArgumentException("Unsupported field type: " + type);
     }
 
+
+    private static Collection<?> createCollectionInstance(Class<?> collectionType, Collection<String> items, Class<?> itemType) {
+        Collection<Object> collection;
+        if (List.class.isAssignableFrom(collectionType)) {
+            collection = new ArrayList<>();
+        } else if (Set.class.isAssignableFrom(collectionType)) {
+            collection = new HashSet<>();
+        } else {
+            throw new IllegalArgumentException("Unsupported collection type: " + collectionType);
+        }
+        for (String item : items) {
+            collection.add(toFieldType(null, itemType, item));
+        }
+        return collection;
+    }
 
 }

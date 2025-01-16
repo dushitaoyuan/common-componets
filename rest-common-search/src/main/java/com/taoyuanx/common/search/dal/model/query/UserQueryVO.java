@@ -16,5 +16,7 @@ public class UserQueryVO implements Serializable {
     private Integer age;
     private Long id;
 
+    private List<Long> ids;
+
     private List<SortCondition> sorts;
 }
