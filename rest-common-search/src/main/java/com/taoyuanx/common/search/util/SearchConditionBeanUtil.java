@@ -15,7 +15,7 @@ import java.util.*;
 
 
 /**
- * @Author dushitaoyuan
+ * @Author taoyuan
  * @Description 条件转换工具(只支持简单条件转换)
  */
 @Slf4j

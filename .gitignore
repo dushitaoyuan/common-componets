@@ -24,3 +24,10 @@
 hs_err_pid*
 replay_pid*
 .idea/
+*.class
+target/
+.joycode
+AGENTS.md
+identifier.sqlite
+skills/
+*.iml

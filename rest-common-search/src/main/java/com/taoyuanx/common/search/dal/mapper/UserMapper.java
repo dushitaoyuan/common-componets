@@ -4,7 +4,7 @@ import com.taoyuanx.common.search.dal.model.User;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 /**
-* @author dushitaoyuan
+* @author taoyuan
 * @description 针对表【user(user table)】的数据库操作Mapper
 * @createDate 2025-01-11 11:24:01
 */

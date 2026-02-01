@@ -1,0 +1,23 @@
+spring:
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  profiles:
+    active: h2
+
+graceful-response:
+  responseStyle: 1
+  defaultSuccessCode: 200
+  defaultErrorCode: 500
+
+audit:
+  log:
+    enabled: true
+    async: true
+
+db:
+  init:
+    enabled: true
+
+
+

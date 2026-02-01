@@ -5,7 +5,7 @@ import java.util.Arrays;
 /**
  * 搜索条件操作符
  *
- * @author dushitaoyuan
+ * @author taoyuan
  * @date 2025/1/10 18:44
  */
 public enum ConditionOperateEnum {

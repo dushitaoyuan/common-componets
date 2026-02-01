@@ -16,7 +16,7 @@ import java.util.*;
  * SearchConditionSqlUtil.buildSortCondition(searchCondition)
  * </p>
  *
- * @author dushitaoyuan
+ * @author taoyuan
  * @date 2025/1/10 17:18
  */
 @SuppressWarnings("all")

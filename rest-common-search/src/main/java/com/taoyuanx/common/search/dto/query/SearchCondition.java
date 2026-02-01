@@ -8,7 +8,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * @Author dushitaoyuan
+ * @Author taoyuan
  * @Date 2024/10/22 14:53
  * @Description 查询条件
  */

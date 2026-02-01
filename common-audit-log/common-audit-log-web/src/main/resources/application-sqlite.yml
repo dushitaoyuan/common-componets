@@ -1,0 +1,5 @@
+# SQLite 数据库配置
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/audit_log.db
+    driver-class-name: org.sqlite.JDBC
