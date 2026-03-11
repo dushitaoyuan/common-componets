@@ -8,11 +8,13 @@ import com.taoyuanx.common.audit.log.context.AuditLogContextUtil;
 import com.taoyuanx.common.audit.log.diff.ObjectDiffHandler;
 import com.taoyuanx.common.audit.log.diff.handler.NoDiffHandler;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
+import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.service.AuditLogFillHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotatedElementUtils;
@@ -29,13 +31,15 @@ import static com.taoyuanx.common.audit.log.context.AuditLogContextUtil.*;
  * @author taoyuan date 2024/12/23 16:22 description 日志记录拦截器
  */
 @Slf4j
-public class AuditLogMethodInterceptor implements MethodInterceptor, ApplicationContextAware {
+public class AuditLogMethodInterceptor implements MethodInterceptor, ApplicationContextAware, DisposableBean {
 
 
     private AuditLogCollector auditLogCollector;
     private AuditLogFillHandler logFillHandler;
 
+    private AuditLogModelPool auditLogModelPool;
     private ApplicationContext applicationContext;
+
 
     public AuditLogMethodInterceptor(AuditLogFillHandler logFillHandler, AuditLogCollector auditLogCollector) {
         this.auditLogCollector = auditLogCollector;
@@ -43,6 +47,15 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
 
     }
 
+    public AuditLogMethodInterceptor(AuditLogFillHandler logFillHandler, AuditLogCollector auditLogCollector, int logPoolMaxSize, int initPoolSize) {
+        this.auditLogCollector = auditLogCollector;
+        this.logFillHandler = logFillHandler;
+        this.auditLogModelPool = new AuditLogModelPool(logPoolMaxSize, initPoolSize);
+    }
+
+    public void setAuditLogModelPool(AuditLogModelPool auditLogModelPool) {
+        this.auditLogModelPool = auditLogModelPool;
+    }
 
     @Override
     public Object invoke(MethodInvocation invocation) throws Throwable {
@@ -91,7 +104,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             if (e != null && StringUtils.hasLength(operateLog.fail())) {
                 logExp = operateLog.fail();
             }
-            AuditLogModel operationLog = new AuditLogModel();
+            AuditLogModel operationLog = newAuditLogModel();
             operationLog.setBizType(operateLog.bizType());
             operationLog.setSubType(StringUtils.hasLength(operateLog.subBizType()) ? operateLog.subBizType() : null);
             operationLog.setOperateObject(SpElUtil.autoEval(methodInvocation, operateLog.operateObject(), result));
@@ -100,9 +113,13 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             auditLogCollector.collect(operationLog);
         } catch (Exception ex) {
             log.warn("saveAuditLog error,methodInvocation:{},result:{}", methodInvocation, result, ex);
-
         }
     }
+
+    private AuditLogModel newAuditLogModel() {
+        return auditLogModelPool == null ? new AuditLogModel() : auditLogModelPool.borrowObject();
+    }
+
 
     private boolean notNeedAuditLog(OperateLog logRecordAnno, Throwable e, MethodInvocation methodInvocation, Object result) {
         Class<? extends Throwable>[] ignoreExceptions = logRecordAnno.ignoreException();
@@ -121,9 +138,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         return false;
     }
 
-    private void fillAuditLog(AuditLogModel operationLog, MethodInvocation methodInvocation, Object result, Throwable e,
-                              Map<String, Object> logContextMap,
-                              Long costTime) {
+    private void fillAuditLog(AuditLogModel operationLog, MethodInvocation methodInvocation, Object result, Throwable e, Map<String, Object> logContextMap, Long costTime) {
         operationLog.setCostTime(costTime);
         operationLog.setOperateTime(new Date());
         operationLog.setOperator(AuditLogContextUtil.get(CONTEXT_KEY_OPERATOR, logContextMap));
@@ -199,5 +214,11 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.applicationContext = applicationContext;
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        auditLogCollector.close();
+
     }
 }

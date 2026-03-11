@@ -14,6 +14,9 @@ audit:
   log:
     enabled: true
     async: true
+    allowNestLog: true
+    basePackages: com.taoyuanx.common.log.web
+    useDisruptor: true
 
 db:
   init:

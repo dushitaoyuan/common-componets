@@ -33,4 +33,34 @@ public class AuditLogProperties {
      */
     private Integer queueFullWaitTime = 2000;
 
+    /**
+     * 是否允许嵌套方法调用日志收集,默认支持
+     */
+    private Boolean allowNestLog = true;
+    /**
+     * 日志记录的package 范围
+     */
+    private String basePackages;
+    /**
+     * 是否使用对象池
+     */
+    private Boolean useObjectPool = true;
+    /**
+     * 对象池最大小
+     */
+    private Integer objectPoolMaxSize = 1024;
+    /**
+     * 对象池初始大小
+     */
+    private Integer  objectPoolInitSize= 100;
+
+    /**
+     * 是否使用disruptor队列
+     */
+    private Boolean useDisruptor = false;
+    /**
+     *  Disruptor环形缓冲区大小，必须是2的幂次方
+     */
+    private Integer ringBufferSize = 1024;
+
 }

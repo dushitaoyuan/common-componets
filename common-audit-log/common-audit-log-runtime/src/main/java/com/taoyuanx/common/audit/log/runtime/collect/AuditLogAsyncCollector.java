@@ -3,10 +3,9 @@ package com.taoyuanx.common.audit.log.runtime.collect;
 import com.taoyuanx.common.audit.log.aop.AuditLogMethodInterceptor;
 import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
+import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.service.AuditLogService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -35,10 +34,16 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
     private static final int DEFAULT_LOG_COLLECT_INTERVAL = 50;
     private static LogCollectThread logCollectThread = null;
 
-    public AuditLogAsyncCollector(AuditLogService auditLogService, Integer logQueueSize, Integer collectInterval, Integer queueFullWaitTime) {
+    private volatile boolean started = false;
+
+    private AuditLogModelPool auditLogModelPool;
+
+
+    public AuditLogAsyncCollector(AuditLogService auditLogService, Integer logQueueSize, Integer collectInterval, Integer queueFullWaitTime, AuditLogModelPool auditLogModelPool) {
         this.auditLogService = auditLogService;
         this.collectInterval = collectInterval == null ? DEFAULT_LOG_COLLECT_INTERVAL : collectInterval;
         this.queueFullWaitTime = queueFullWaitTime == null ? 2000 : queueFullWaitTime;
+        this.auditLogModelPool = auditLogModelPool;
         synchronized (AuditLogMethodInterceptor.class) {
             if (logQueue == null) {
                 logQueue = new ArrayBlockingQueue<>(logQueueSize == null ? DEFAULT_LOG_QUEUE_SIZE : logQueueSize);
@@ -46,16 +51,20 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
             if (logCollectThread == null) {
                 logCollectThread = new LogCollectThread();
                 logCollectThread.start();
+                started = true;
             }
         }
     }
 
-    public AuditLogAsyncCollector(AuditLogService auditLogService) {
-        this(auditLogService, DEFAULT_LOG_QUEUE_SIZE, DEFAULT_LOG_COLLECT_INTERVAL, -1);
+    public AuditLogAsyncCollector(AuditLogService auditLogService, AuditLogModelPool auditLogModelPool) {
+        this(auditLogService, DEFAULT_LOG_QUEUE_SIZE, DEFAULT_LOG_COLLECT_INTERVAL, -1, auditLogModelPool);
     }
 
     @Override
     public void collect(AuditLogModel auditLogModel) throws Exception {
+        if (!started) {
+            throw new IllegalStateException("AuditLogAsyncCollector 未启动");
+        }
         if (queueFullWaitTime > 0) {
             if (logQueue.offer(auditLogModel, queueFullWaitTime, TimeUnit.MILLISECONDS)) {
                 return;
@@ -68,19 +77,29 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
         log.warn("collect error,addLogQueue error,operationLog:{}", auditLogModel);
     }
 
+    @Override
+    public void close() {
+        started = false;
+        logCollectThread = null;
+
+    }
+
 
     private class LogCollectThread extends Thread {
 
         public LogCollectThread() {
-            super("LogCollectThread");
+            super("AsyncLogCollectThread");
         }
 
         @Override
         public void run() {
             try {
-                while (true) {
+                while (started) {
                     AuditLogModel auditLog = logQueue.poll(collectInterval, TimeUnit.MILLISECONDS);
                     doCollect(auditLog);
+                    if (auditLogModelPool != null) {
+                        auditLogModelPool.returnObject(auditLog);
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

@@ -2,6 +2,7 @@ package com.taoyuanx.common.audit.log.runtime.collect;
 
 import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
+import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.service.AuditLogService;
 
 /**
@@ -12,13 +13,24 @@ import com.taoyuanx.common.audit.log.service.AuditLogService;
  */
 public class AuditLogDirectCollector implements AuditLogCollector {
     private AuditLogService auditLogService;
+    private AuditLogModelPool auditLogModelPool;
 
-    public AuditLogDirectCollector(AuditLogService auditLogService) {
+
+    public AuditLogDirectCollector(AuditLogService auditLogService, AuditLogModelPool auditLogModelPool) {
         this.auditLogService = auditLogService;
+        this.auditLogModelPool = auditLogModelPool;
     }
 
     @Override
     public void collect(AuditLogModel auditLogModel) throws Exception {
-        auditLogService.saveAuditLog(auditLogModel);
+        try {
+            auditLogService.saveAuditLog(auditLogModel);
+        } finally {
+            if (auditLogModelPool != null) {
+                auditLogModelPool.returnObject(auditLogModel);
+            }
+        }
     }
+
+
 }

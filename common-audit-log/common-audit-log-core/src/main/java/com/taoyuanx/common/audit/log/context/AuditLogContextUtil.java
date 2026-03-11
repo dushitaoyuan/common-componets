@@ -28,8 +28,11 @@ public class AuditLogContextUtil {
 
 
 
-    private static final NestedThreadLocal<Map<String, Object>> CONTEXT = new NestedThreadLocal<>();
+    private static  LogThreadLocal<Map<String, Object>> CONTEXT=null;
 
+    public static void initLocal(boolean allowNest){
+        CONTEXT  = new LogThreadLocal<>(allowNest);
+    }
 
     public static void remove() {
         CONTEXT.remove();
