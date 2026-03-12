@@ -32,5 +32,11 @@ public class AuditLogDirectCollector implements AuditLogCollector {
         }
     }
 
+    @Override
+    public void close() {
+        if(auditLogModelPool!=null){
+            auditLogModelPool.close();
+        }
 
+    }
 }

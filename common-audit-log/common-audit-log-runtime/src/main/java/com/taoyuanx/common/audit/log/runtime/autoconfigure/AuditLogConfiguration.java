@@ -14,6 +14,7 @@ import com.taoyuanx.common.audit.log.service.AuditLogService;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.AbstractBeanFactoryPointcutAdvisor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -73,11 +74,14 @@ public class AuditLogConfiguration {
         }
     }
     @Bean
-    @ConditionalOnProperty(prefix = "audit.log", name = "useObjectPool", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
+    @ConditionalOnExpression("${audit.log.useObjectPool:false} or '${audit.log.logScene:normal}'=='normal'")
     public AuditLogModelPool auditLogModelPool( @Autowired AuditLogProperties auditLogProperties) {
+        auditLogProperties.initByLogScene();
         return  new AuditLogModelPool(auditLogProperties.getObjectPoolMaxSize(), auditLogProperties.getObjectPoolInitSize());
+
     }
+
 
 
     @Bean

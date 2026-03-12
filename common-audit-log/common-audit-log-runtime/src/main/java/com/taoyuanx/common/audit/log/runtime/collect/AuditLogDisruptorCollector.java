@@ -29,24 +29,14 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
 
     private volatile boolean started = false;
 
-    private static final int DEFAULT_RING_BUFFER_SIZE = 1024 * 10;
-    private static final int DEFAULT_POOL_MAX_SIZE = 100;
-    private static final int DEFAULT_POOL_INITIAL_SIZE = 10;
+    private static final int DEFAULT_RING_BUFFER_SIZE = 1024;
 
-    public AuditLogDisruptorCollector(AuditLogService auditLogService, AuditLogModelPool auditLogModelPool) {
-        this(auditLogService, DEFAULT_RING_BUFFER_SIZE, DEFAULT_POOL_MAX_SIZE, DEFAULT_POOL_INITIAL_SIZE, auditLogModelPool);
-    }
-
-    public AuditLogDisruptorCollector(AuditLogService auditLogService, Integer ringBufferSize, AuditLogModelPool auditLogModelPool) {
-        this(auditLogService, ringBufferSize, DEFAULT_POOL_MAX_SIZE, DEFAULT_POOL_INITIAL_SIZE, auditLogModelPool);
-    }
+    private AuditLogModelPool auditLogModelPool;
 
     public AuditLogDisruptorCollector(AuditLogService auditLogService, Integer ringBufferSize,
-                                      Integer poolMaxSize, Integer poolInitialSize, AuditLogModelPool auditLogModelPool) {
+                                      AuditLogModelPool auditLogModelPool) {
         this.ringBufferSize = ringBufferSize == null ? DEFAULT_RING_BUFFER_SIZE : ringBufferSize;
-        int maxPoolSize = poolMaxSize == null ? DEFAULT_POOL_MAX_SIZE : poolMaxSize;
-        int initialPoolSize = poolInitialSize == null ? DEFAULT_POOL_INITIAL_SIZE : poolInitialSize;
-
+        this.auditLogModelPool = auditLogModelPool;
         AuditLogEventFactory eventFactory = new AuditLogEventFactory();
         ThreadFactory threadFactory = r -> {
             Thread thread = new Thread(r, "AuditLog-Disruptor-Thread");
@@ -60,14 +50,13 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
                 ProducerType.MULTI,
                 new com.lmax.disruptor.BlockingWaitStrategy()
         );
-
-        disruptor.handleEventsWith(new AuditLogEventHandler(auditLogService,auditLogModelPool));
+        disruptor.handleEventsWith(new AuditLogEventHandler(auditLogService, auditLogModelPool));
 
         ringBuffer = disruptor.start();
         started = true;
 
-        log.info("AuditLogDisruptorCollector started with ring buffer size: {}, pool max size: {}, pool initial size: {}",
-                this.ringBufferSize, maxPoolSize, initialPoolSize);
+        log.info("AuditLogDisruptorCollector started with ring buffer size: {}",
+                this.ringBufferSize);
     }
 
     @Override
@@ -98,6 +87,9 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
                 if (disruptor != null) {
                     disruptor.shutdown();
                     log.info("AuditLogDisruptorCollector shutdown successfully");
+                    if (auditLogModelPool != null) {
+                        auditLogModelPool.close();
+                    }
                 }
                 started = false;
             } catch (Exception e) {

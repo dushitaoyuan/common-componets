@@ -1,9 +1,5 @@
 package com.taoyuanx.common.audit.log.context;
 
-import com.alibaba.ttl.TransmittableThreadLocal;
-
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 

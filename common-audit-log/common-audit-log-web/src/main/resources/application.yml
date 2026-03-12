@@ -13,10 +13,8 @@ graceful-response:
 audit:
   log:
     enabled: true
-    async: true
-    allowNestLog: true
     basePackages: com.taoyuanx.common.log.web
-    useDisruptor: true
+    logScene: high
 
 db:
   init:

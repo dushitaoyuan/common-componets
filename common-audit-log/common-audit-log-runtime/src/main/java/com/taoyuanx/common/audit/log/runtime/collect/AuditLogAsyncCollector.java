@@ -81,6 +81,9 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
     public void close() {
         started = false;
         logCollectThread = null;
+        if(auditLogModelPool!=null){
+            auditLogModelPool.close();
+        }
 
     }
 
