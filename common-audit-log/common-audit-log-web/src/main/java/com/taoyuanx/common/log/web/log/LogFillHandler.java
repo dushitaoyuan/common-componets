@@ -13,10 +13,10 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class LogFillHandler implements AuditLogFillHandler {
+
     @Override
     public void fillAuditLog(MethodInvocation methodInvocation) {
-        // 填充操作人和操作租户,trace_id
-        AuditLogContextUtil.set(AuditLogContextUtil.CONTEXT_KEY_TENANT, "default");
+        // 填充操作人和trace_id等日志上下文
         AuditLogContextUtil.set(AuditLogContextUtil.CONTEXT_KEY_OPERATOR, "system");
     }
 }

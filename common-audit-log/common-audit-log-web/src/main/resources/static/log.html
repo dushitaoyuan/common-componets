@@ -974,7 +974,7 @@
                     <td>${log.traceId || '-'}</td>
                      <td>${log.tenant || '-'}</td>
                     <td>
-                        <button class="btn btn-info" onclick="showDetail(${log.id})">
+                        <button class="btn btn-info" onclick="showDetail('${log.id}','${log.tenant}')">
                             <i class="fas fa-eye"></i> 查看详情
                         </button>
                     </td>
@@ -983,13 +983,13 @@
     }
 
     // 显示详情弹窗
-    function showDetail(logId) {
+    function showDetail(logId,tenant) {
         // 显示加载状态
         document.getElementById('detailOperateDslContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p>正在加载详情...</p></div>';
         document.getElementById('detailModal').classList.add('open');
 
         // 请求后端接口获取详情数据
-        fetch(`/api/audit/logs/detail?logId=${logId}`)
+        fetch(`/api/audit/logs/detail?logId=${logId}&tenant=${tenant}`)
             .then(response => response.json())
             .then(data => {
                 const log = data.data;

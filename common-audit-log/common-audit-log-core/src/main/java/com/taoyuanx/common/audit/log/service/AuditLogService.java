@@ -17,5 +17,12 @@ public interface AuditLogService {
 
     PageModel<AuditLogModel> page(AuditLogQueryModel queryModel);
 
-    AuditLogModel detail(Long logId);
+    /**
+     * 根据日志ID查询详情
+     * @param logId 日志ID
+     * @return 日志详情
+     */
+    AuditLogModel detail(Long logId, String tenant);
+
+
 }

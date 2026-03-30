@@ -79,6 +79,36 @@ public class AuditLogProperties {
     private Integer ringBufferSize;
 
     /**
+     * 是否启用分表
+     */
+    private Boolean enableSharding = false;
+
+    /**
+     * 分表数量
+     */
+    private Integer shardingTableCount = 1;
+
+    /**
+     * 日志表名称，默认为 op_log
+     */
+    private String logTableName = "op_log";
+
+    /**
+     * 日志明细表前缀，默认为 op_log_detail
+     */
+    private String logDetailTableName = "op_log_detail";
+
+    /**
+     * 应用标识
+     */
+    private String appId;
+    /**
+     * 是否启用日志详情表,默认不启用
+     */
+    private Boolean enableLogDetailTable;
+
+
+    /**
      * 初始化方法，根据日志收集场景自动补全其他字段的值
      * 用户自定义配置优先于场景默认配置
      */
@@ -122,9 +152,25 @@ public class AuditLogProperties {
         setDefaultValue("objectPoolInitSize", 50);
         setDefaultValue("useDisruptor", false);
         setDefaultValue("ringBufferSize", 1024);
+        setDefaultValue("enableLogDetailTable", false);
+        setDefaultValue("logTableName", "op_log");
+        setDefaultValue("logDetailTableName", "op_log_detail");
+        /**
+         * 分表默认配置
+         */
+        setDefaultValue("enableSharding", false);
+        setDefaultValue("shardingTableCount", 1);
+
+
+
+
+        if (appId == null) {
+            throw new IllegalArgumentException("缺少配置:日志应用id");
+        }
 
     }
-    private void setNormal(){
+
+    private void setNormal() {
         // 普通场景：使用jdk队列异步收集，较小的对象池
         setDefaultValue("async", true);
         setDefaultValue("logQueueSize", 1000);
@@ -137,8 +183,9 @@ public class AuditLogProperties {
 
     /**
      * 设置默认值，仅当当前值为null时才设置
+     *
      * @param fieldName 字段名
-     * @param value 默认值
+     * @param value     默认值
      */
     private void setDefaultValue(String fieldName, Object value) {
         try {

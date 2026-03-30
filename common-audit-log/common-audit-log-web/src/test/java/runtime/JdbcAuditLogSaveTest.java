@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.model.AuditLogQueryModel;
 import com.taoyuanx.common.audit.log.model.PageModel;
-import com.taoyuanx.common.audit.log.runtime.single.JdbcTemplateSqlLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogService;
 import com.taoyuanx.common.log.web.demo.DemoLogService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public class JdbcAuditLogSaveTest extends BaseTest {
     @Autowired
-    private JdbcTemplateSqlLogService jdbcTemplateSingleLogService;
+    private AuditLogService auditLogService;
 
     @Autowired
     private DemoLogService demoLogService;
@@ -33,7 +33,7 @@ public class JdbcAuditLogSaveTest extends BaseTest {
         AuditLogQueryModel query = new AuditLogQueryModel();
         query.setPageNum(1);
         query.setPageSize(10);
-        PageModel<AuditLogModel> page = jdbcTemplateSingleLogService.page(query);
+        PageModel<AuditLogModel> page = auditLogService.page(query);
         System.out.println(JSON.toJSONString(page));
     }
 }

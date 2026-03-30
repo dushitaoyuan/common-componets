@@ -22,6 +22,7 @@ import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,22 +36,16 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
 
 
     private AuditLogCollector auditLogCollector;
-    private AuditLogFillHandler logFillHandler;
+    private List<AuditLogFillHandler> logFillHandlers;
 
     private AuditLogModelPool auditLogModelPool;
     private ApplicationContext applicationContext;
 
 
-    public AuditLogMethodInterceptor(AuditLogFillHandler logFillHandler, AuditLogCollector auditLogCollector) {
+    public AuditLogMethodInterceptor(List<AuditLogFillHandler> logFillHandlers, AuditLogCollector auditLogCollector) {
         this.auditLogCollector = auditLogCollector;
-        this.logFillHandler = logFillHandler;
+        this.logFillHandlers = logFillHandlers;
 
-    }
-
-    public AuditLogMethodInterceptor(AuditLogFillHandler logFillHandler, AuditLogCollector auditLogCollector, int logPoolMaxSize, int initPoolSize) {
-        this.auditLogCollector = auditLogCollector;
-        this.logFillHandler = logFillHandler;
-        this.auditLogModelPool = new AuditLogModelPool(logPoolMaxSize, initPoolSize);
     }
 
     public void setAuditLogModelPool(AuditLogModelPool auditLogModelPool) {
@@ -69,8 +64,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             ex = e;
             throw e;
         } finally {
-            long costTime = System.currentTimeMillis() - startTime;
-            collectAuditLogModel(invocation, result, ex, logContextMap, costTime);
+            collectAuditLogModel(invocation, result, ex, logContextMap, startTime);
             AuditLogContextUtil.remove();
         }
         return result;
@@ -79,18 +73,18 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
     private Map<String, Object> initAuditLogBefore(MethodInvocation methodInvocation) {
         // 初始化日志上下文
         Map<String, Object> logContextMap = AuditLogContextUtil.init();
-        if (logFillHandler == null) {
+        if (logFillHandlers == null||logFillHandlers.isEmpty()) {
             return logContextMap;
         }
         try {
-            logFillHandler.fillAuditLog(methodInvocation);
+            logFillHandlers.forEach(logFillHandler->logFillHandler.fillAuditLog(methodInvocation));
         } catch (Throwable e) {
             log.warn("beforeAuditLog error,methodInvocation:{}", methodInvocation, e);
         }
         return logContextMap;
     }
 
-    private void collectAuditLogModel(MethodInvocation methodInvocation, Object result, Throwable e, Map<String, Object> logContextMap, long costTime) {
+    private void collectAuditLogModel(MethodInvocation methodInvocation, Object result, Throwable e, Map<String, Object> logContextMap, long startTime) {
         try {
             Method method = methodInvocation.getMethod();
             OperateLog operateLog = findMergedOperateLog(method);
@@ -100,6 +94,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             if (notNeedAuditLog(operateLog, e, methodInvocation, result)) {
                 return;
             }
+            long costTime = System.currentTimeMillis() - startTime;
             String logExp = operateLog.success();
             if (e != null && StringUtils.hasLength(operateLog.fail())) {
                 logExp = operateLog.fail();

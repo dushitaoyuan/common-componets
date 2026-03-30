@@ -45,8 +45,8 @@ public class AuditLogController {
     }
 
     @GetMapping("/detail")
-    public AuditLogModel detail(Long logId) {
-        return auditLogService.detail(logId);
+    public AuditLogModel detail(Long logId,String tenant) {
+        return auditLogService.detail(logId,tenant);
     }
 
 }

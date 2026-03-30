@@ -15,6 +15,11 @@ audit:
     enabled: true
     basePackages: com.taoyuanx.common.log.web
     logScene: high
+    appId: default
+    enableSharding: false
+    shardingTableCount: 2
+    enableLogDetailTable: true
+
 
 db:
   init:
