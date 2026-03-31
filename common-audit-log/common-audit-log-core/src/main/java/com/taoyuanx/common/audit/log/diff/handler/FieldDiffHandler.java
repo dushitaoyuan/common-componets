@@ -4,6 +4,7 @@ import com.taoyuanx.common.audit.log.diff.DiffMapVisitor;
 import com.taoyuanx.common.audit.log.diff.ObjectDiffHandler;
 import de.danielbechler.diff.ObjectDifferBuilder;
 import de.danielbechler.diff.node.DiffNode;
+import org.springframework.stereotype.Component;
 
 
 /**

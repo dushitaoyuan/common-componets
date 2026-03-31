@@ -1,5 +1,6 @@
 package com.taoyuanx.common.audit.log.runtime.impl.log;
 
+import com.taoyuanx.common.audit.log.common.LogIdGenerator;
 import com.taoyuanx.common.audit.log.runtime.autoconfigure.AuditLogProperties;
 import com.taoyuanx.common.audit.log.runtime.impl.AbstractJdbcTemplateAuditLogService;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,8 +17,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class SingleTableAuditLogService extends AbstractJdbcTemplateAuditLogService {
 
 
-    public SingleTableAuditLogService(JdbcTemplate jdbcTemplate, AuditLogProperties auditLogProperties) {
-        super(jdbcTemplate, auditLogProperties);
+    public SingleTableAuditLogService(JdbcTemplate jdbcTemplate, AuditLogProperties auditLogProperties, LogIdGenerator logIdGenerator) {
+        super(jdbcTemplate, auditLogProperties,logIdGenerator);
     }
 
 

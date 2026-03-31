@@ -44,12 +44,13 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSer
     protected boolean enableLogDetailTable;
 
 
-    public AbstractJdbcTemplateAuditLogService(JdbcTemplate jdbcTemplate, AuditLogProperties auditLogProperties) {
+    public AbstractJdbcTemplateAuditLogService(JdbcTemplate jdbcTemplate, AuditLogProperties auditLogProperties, LogIdGenerator logIdGenerator) {
         this.jdbcTemplate = jdbcTemplate;
         this.logTableName = auditLogProperties.getLogTableName();
         this.logDetailTableName = auditLogProperties.getLogDetailTableName();
         this.auditLogProperties = auditLogProperties;
         this.enableLogDetailTable = auditLogProperties.getEnableLogDetailTable();
+        this.logIdGenerator=logIdGenerator;
     }
 
 

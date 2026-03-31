@@ -20,8 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class ShardingAuditLogService extends AbstractJdbcTemplateAuditLogService {
 
     public ShardingAuditLogService(JdbcTemplate jdbcTemplate, AuditLogProperties auditLogProperties, LogIdGenerator logIdGenerator) {
-        super(jdbcTemplate,auditLogProperties);
-        setLogIdGenerator(logIdGenerator);
+        super(jdbcTemplate,auditLogProperties,logIdGenerator);
     }
     @Override
     protected String calcTableName(String tenant, String tablePrefix) {

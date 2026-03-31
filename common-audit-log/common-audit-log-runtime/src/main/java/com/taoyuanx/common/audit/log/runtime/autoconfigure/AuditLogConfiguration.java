@@ -5,6 +5,7 @@ import com.taoyuanx.common.audit.log.aop.AuditLogPointcut;
 import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.common.LogIdGenerator;
 import com.taoyuanx.common.audit.log.context.AuditLogContextUtil;
+import com.taoyuanx.common.audit.log.diff.handler.FieldDiffHandler;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogAsyncCollector;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogDirectCollector;
@@ -78,7 +79,6 @@ public class AuditLogConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnExpression("${audit.log.useObjectPool:false} or '${audit.log.logScene:normal}'=='normal'")
     public AuditLogModelPool auditLogModelPool(@Autowired AuditLogProperties auditLogProperties) {
-        auditLogProperties.initByLogScene();
         return new AuditLogModelPool(auditLogProperties.getObjectPoolMaxSize(), auditLogProperties.getObjectPoolInitSize());
 
     }
@@ -89,14 +89,9 @@ public class AuditLogConfiguration {
     public AuditLogService auditLogService(JdbcTemplate jdbcTemplate, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) LogIdGenerator logIdGenerator) {
         // 根据配置选择使用单表还是分表实现
         if (Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1) {
-            return new ShardingAuditLogService(jdbcTemplate, auditLogProperties, logIdGenerator == null ? new LogIdGenerator() {
-                @Override
-                public Long nextId() {
-                    return SnowflakeIdGenerator.getInstance().nextId();
-                }
-            } : logIdGenerator);
+            return new ShardingAuditLogService(jdbcTemplate, auditLogProperties, logIdGenerator == null ? (LogIdGenerator) () -> SnowflakeIdGenerator.getInstance().nextId() : logIdGenerator);
         } else {
-            return new SingleTableAuditLogService(jdbcTemplate, auditLogProperties);
+            return new SingleTableAuditLogService(jdbcTemplate, auditLogProperties, logIdGenerator);
         }
     }
 
@@ -112,5 +107,9 @@ public class AuditLogConfiguration {
         public Pointcut getPointcut() {
             return auditLogPointcut;
         }
+    }
+    @Bean
+    public FieldDiffHandler  fieldDiffHandler(){
+        return new FieldDiffHandler();
     }
 }
