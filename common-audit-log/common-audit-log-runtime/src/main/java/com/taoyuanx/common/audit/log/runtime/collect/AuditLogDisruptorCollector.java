@@ -1,9 +1,11 @@
 package com.taoyuanx.common.audit.log.runtime.collect;
 
+import com.alibaba.fastjson2.JSON;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
+import com.taoyuanx.common.audit.log.common.LogException;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEvent;
@@ -66,15 +68,12 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
         }
         try {
             long sequence = ringBuffer.next();
-            try {
-                AuditLogEvent event = ringBuffer.get(sequence);
-                event.setAuditLog(auditLogModel);
-            } finally {
-                ringBuffer.publish(sequence);
-            }
+            AuditLogEvent event = ringBuffer.get(sequence);
+            event.setAuditLog(auditLogModel);
+            ringBuffer.publish(sequence);
         } catch (Exception e) {
-            log.error("Failed to publish audit log event: {}", auditLogModel, e);
-            throw new RuntimeException("Failed to publish audit log event", e);
+            log.error("disruptor collect log error,operationLog:{}", JSON.toJSONString(auditLogModel),e);
+            throw new  LogException(e);
         }
     }
 

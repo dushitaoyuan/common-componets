@@ -28,19 +28,18 @@ public class AuditLogEventHandler implements EventHandler<AuditLogEvent> {
 
     @Override
     public void onEvent(AuditLogEvent event, long sequence, boolean endOfBatch) {
-        AuditLogModel auditLog = null;
+        AuditLogModel auditLog = event.getAuditLog();
         try {
-            auditLog = event.getAuditLog();
             if (auditLog != null) {
                 auditLogService.saveAuditLog(auditLog);
             }
         } catch (Exception e) {
-            log.error("Error processing audit log event: {}", auditLog, e);
+            log.error("disruptor doCollect error auditLog:{}", auditLog, e);
         } finally {
-            if (auditLogModelPool != null) {
+            event.setAuditLog(null);
+            if (auditLogModelPool != null && auditLog != null) {
                 auditLogModelPool.returnObject(auditLog);
             }
-            event.setAuditLog(null);
         }
     }
 }

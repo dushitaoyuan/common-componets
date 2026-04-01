@@ -1,7 +1,9 @@
 package com.taoyuanx.common.audit.log.runtime.collect;
 
+import com.alibaba.fastjson2.JSON;
 import com.taoyuanx.common.audit.log.aop.AuditLogMethodInterceptor;
 import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
+import com.taoyuanx.common.audit.log.common.LogException;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.service.AuditLogService;
@@ -65,16 +67,16 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
         if (!started) {
             throw new IllegalStateException("AuditLogAsyncCollector 未启动");
         }
-        if (queueFullWaitTime > 0) {
-            if (logQueue.offer(auditLogModel, queueFullWaitTime, TimeUnit.MILLISECONDS)) {
+        if (queueFullWaitTime > 0 && logQueue.offer(auditLogModel, queueFullWaitTime, TimeUnit.MILLISECONDS)) {
                 return;
-            }
-        } else {
-            if (logQueue.offer(auditLogModel)) {
-                return;
-            }
         }
-        log.warn("collect error,addLogQueue error,operationLog:{}", auditLogModel);
+        if (logQueue.offer(auditLogModel)) {
+            return;
+        }
+        log.error("collectAuditLogModel async add logQueue error ,logModel:{}", JSON.toJSONString(auditLogModel));
+        throw new LogException("async collect log error");
+
+
     }
 
     @Override
@@ -106,9 +108,9 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.error("Interrupted while collecting log", e);
+                log.error("Interrupted while collecting log,logQueueSize:{}", logQueue.size(), e);
             } catch (Exception e) {
-                log.error("Error while collecting log", e);
+                log.error("Error while collecting log,logQueueSize:{}", logQueue.size(), e);
             }
         }
     }
@@ -120,7 +122,7 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
             }
             auditLogService.saveAuditLog(auditLog);
         } catch (Exception e) {
-            log.error("doCollect error slowCollectInfo:{}", auditLog, e);
+            log.error("doCollect error auditLog:{}", auditLog, e);
         }
     }
 }

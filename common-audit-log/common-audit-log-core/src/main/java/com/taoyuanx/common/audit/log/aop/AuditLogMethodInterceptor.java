@@ -107,7 +107,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             fillAuditLog(operationLog, methodInvocation, result, e, logContextMap, costTime);
             auditLogCollector.collect(operationLog);
         } catch (Exception ex) {
-            log.warn("saveAuditLog error,methodInvocation:{},result:{}", methodInvocation, result, ex);
+            log.error("collectAuditLogModel error,methodInvocation:{},result:{}", methodInvocation, result, ex);
         }
     }
 
