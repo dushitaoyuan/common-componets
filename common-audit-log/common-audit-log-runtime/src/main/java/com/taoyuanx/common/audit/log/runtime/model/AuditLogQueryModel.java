@@ -1,4 +1,4 @@
-package com.taoyuanx.common.audit.log.model;
+package com.taoyuanx.common.audit.log.runtime.model;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -59,12 +59,5 @@ public class AuditLogQueryModel {
      */
     private String tenant;
 
-    /**
-     * 页码
-     */
-    private Integer pageSize;
-    /**
-     * 页大小
-     */
-    private Integer pageNum;
+
 }

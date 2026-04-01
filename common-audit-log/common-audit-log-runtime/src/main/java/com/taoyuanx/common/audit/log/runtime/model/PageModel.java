@@ -1,4 +1,4 @@
-package com.taoyuanx.common.audit.log.model;
+package com.taoyuanx.common.audit.log.runtime.model;
 
 import lombok.Data;
 

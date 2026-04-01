@@ -2,9 +2,9 @@ package runtime;
 
 import com.alibaba.fastjson2.JSON;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
-import com.taoyuanx.common.audit.log.model.AuditLogQueryModel;
-import com.taoyuanx.common.audit.log.model.PageModel;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.runtime.ext.AuditLogQueryService;
+import com.taoyuanx.common.audit.log.runtime.model.AuditLogQueryModel;
+import com.taoyuanx.common.audit.log.runtime.model.PageModel;
 import com.taoyuanx.common.log.web.demo.DemoLogService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,8 +16,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * @date 2025/7/28 18:10
  */
 public class JdbcAuditLogSaveTest extends BaseTest {
+
+
     @Autowired
-    private AuditLogService auditLogService;
+    private AuditLogQueryService auditLogQueryService;
 
     @Autowired
     private DemoLogService demoLogService;
@@ -33,7 +35,7 @@ public class JdbcAuditLogSaveTest extends BaseTest {
         AuditLogQueryModel query = new AuditLogQueryModel();
         query.setPageNum(1);
         query.setPageSize(10);
-        PageModel<AuditLogModel> page = auditLogService.page(query);
+        PageModel<AuditLogModel> page = auditLogQueryService.page(query);
         System.out.println(JSON.toJSONString(page));
     }
 }

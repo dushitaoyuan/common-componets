@@ -914,15 +914,17 @@
         const queryModel = {
             pageNum: currentPage,
             pageSize: pageSize,
-            bizType: document.getElementById('bizType').value || null,
-            subType: document.getElementById('subType').value || null,
-            operator: document.getElementById('operator').value || null,
-            tenant: document.getElementById('tenant').value || null,
-            operateObject: document.getElementById('operateObject').value || null,
-            operateDesc: document.getElementById('operateDesc').value || null,
-            traceId: document.getElementById('traceId').value || null,
-            startTime: startTimeValue ? new Date(startTimeValue).getTime() : null,
-            endTime: endTimeValue ? new Date(endTimeValue).getTime() : null
+            query:{
+                bizType: document.getElementById('bizType').value || null,
+                subType: document.getElementById('subType').value || null,
+                operator: document.getElementById('operator').value || null,
+                tenant: document.getElementById('tenant').value || null,
+                operateObject: document.getElementById('operateObject').value || null,
+                operateDesc: document.getElementById('operateDesc').value || null,
+                traceId: document.getElementById('traceId').value || null,
+                startTime: startTimeValue ? new Date(startTimeValue).getTime() : null,
+                endTime: endTimeValue ? new Date(endTimeValue).getTime() : null
+            }
         };
 
         const successValue = document.getElementById('success').value;

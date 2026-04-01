@@ -6,7 +6,7 @@ import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.common.LogException;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ArrayBlockingQueue;
@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class AuditLogAsyncCollector implements AuditLogCollector {
-    private AuditLogService auditLogService;
+    private AuditLogStoreService auditLogService;
     /**
      * 收集线程收集间隔时间
      */
@@ -41,7 +41,7 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
     private AuditLogModelPool auditLogModelPool;
 
 
-    public AuditLogAsyncCollector(AuditLogService auditLogService, Integer logQueueSize, Integer collectInterval, Integer queueFullWaitTime, AuditLogModelPool auditLogModelPool) {
+    public AuditLogAsyncCollector(AuditLogStoreService auditLogService, Integer logQueueSize, Integer collectInterval, Integer queueFullWaitTime, AuditLogModelPool auditLogModelPool) {
         this.auditLogService = auditLogService;
         this.collectInterval = collectInterval == null ? DEFAULT_LOG_COLLECT_INTERVAL : collectInterval;
         this.queueFullWaitTime = queueFullWaitTime == null ? 2000 : queueFullWaitTime;
@@ -58,7 +58,7 @@ public class AuditLogAsyncCollector implements AuditLogCollector {
         }
     }
 
-    public AuditLogAsyncCollector(AuditLogService auditLogService, AuditLogModelPool auditLogModelPool) {
+    public AuditLogAsyncCollector(AuditLogStoreService auditLogService, AuditLogModelPool auditLogModelPool) {
         this(auditLogService, DEFAULT_LOG_QUEUE_SIZE, DEFAULT_LOG_COLLECT_INTERVAL, -1, auditLogModelPool);
     }
 

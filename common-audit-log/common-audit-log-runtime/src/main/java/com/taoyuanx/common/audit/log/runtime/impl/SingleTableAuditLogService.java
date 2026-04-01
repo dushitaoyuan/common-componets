@@ -1,8 +1,7 @@
-package com.taoyuanx.common.audit.log.runtime.impl.log;
+package com.taoyuanx.common.audit.log.runtime.impl;
 
 import com.taoyuanx.common.audit.log.common.LogIdGenerator;
 import com.taoyuanx.common.audit.log.runtime.autoconfigure.AuditLogProperties;
-import com.taoyuanx.common.audit.log.runtime.impl.AbstractJdbcTemplateAuditLogService;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**

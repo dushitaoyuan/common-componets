@@ -10,11 +10,11 @@ import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogAsyncCollector;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogDirectCollector;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogDisruptorCollector;
-import com.taoyuanx.common.audit.log.runtime.impl.log.ShardingAuditLogService;
-import com.taoyuanx.common.audit.log.runtime.impl.log.SingleTableAuditLogService;
+import com.taoyuanx.common.audit.log.runtime.impl.ShardingAuditLogService;
+import com.taoyuanx.common.audit.log.runtime.impl.SingleTableAuditLogService;
 import com.taoyuanx.common.audit.log.runtime.util.SnowflakeIdGenerator;
 import com.taoyuanx.common.audit.log.service.AuditLogFillHandler;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.AbstractBeanFactoryPointcutAdvisor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +62,7 @@ public class AuditLogConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogCollector auditLogCollector(@Autowired AuditLogService auditLogService, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) AuditLogModelPool auditLogModelPool) {
+    public AuditLogCollector auditLogCollector(@Autowired AuditLogStoreService auditLogService, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) AuditLogModelPool auditLogModelPool) {
         AuditLogContextUtil.initLocal(auditLogProperties.getAllowNestLog() == null || Objects.equals(auditLogProperties.getAllowNestLog(), true) ? true : false);
         if (Objects.equals(auditLogProperties.getAsync(), Boolean.TRUE)) {
             if (Objects.equals(auditLogProperties.getUseDisruptor(), Boolean.TRUE)) {
@@ -85,8 +85,8 @@ public class AuditLogConfiguration {
 
 
     @Bean
-    @ConditionalOnMissingBean(AuditLogService.class)
-    public AuditLogService auditLogService(JdbcTemplate jdbcTemplate, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) LogIdGenerator logIdGenerator) {
+    @ConditionalOnMissingBean(AuditLogStoreService.class)
+    public AuditLogStoreService auditLogService(JdbcTemplate jdbcTemplate, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) LogIdGenerator logIdGenerator) {
         // 根据配置选择使用单表还是分表实现
         if (Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1) {
             return new ShardingAuditLogService(jdbcTemplate, auditLogProperties, logIdGenerator == null ? (LogIdGenerator) () -> SnowflakeIdGenerator.getInstance().nextId() : logIdGenerator);

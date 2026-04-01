@@ -3,11 +3,13 @@ package com.taoyuanx.common.audit.log.runtime.impl;
 import com.alibaba.fastjson2.JSON;
 import com.taoyuanx.common.audit.log.common.LogIdGenerator;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
-import com.taoyuanx.common.audit.log.model.AuditLogQueryModel;
-import com.taoyuanx.common.audit.log.model.PageModel;
+import com.taoyuanx.common.audit.log.runtime.ext.AuditLogQueryService;
+import com.taoyuanx.common.audit.log.runtime.model.AuditLogQueryModel;
+import com.taoyuanx.common.audit.log.runtime.model.PageModel;
 import com.taoyuanx.common.audit.log.runtime.autoconfigure.AuditLogProperties;
+import com.taoyuanx.common.audit.log.runtime.model.PageQueryModel;
 import com.taoyuanx.common.audit.log.runtime.sql.SqlTemplateManager;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -34,7 +36,7 @@ import java.util.Date;
  */
 @RequiredArgsConstructor
 @Slf4j
-public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogService {
+public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogStoreService, AuditLogQueryService {
 
     protected final JdbcTemplate jdbcTemplate;
     protected String logTableName;
@@ -55,7 +57,8 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSer
 
 
     @Override
-    public PageModel<AuditLogModel> page(AuditLogQueryModel queryModel) {
+    public PageModel<AuditLogModel> page(PageQueryModel<AuditLogQueryModel> pageQuery) {
+        AuditLogQueryModel queryModel = pageQuery.getQuery();
         // 计算表名
         String tableName = calcTableName(queryModel.getTenant(), logTableName);
 
@@ -65,8 +68,8 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSer
         // 分页处理（SQLite 使用 LIMIT 和 OFFSET）
         sql.append(" ORDER BY op_time DESC LIMIT ? OFFSET ?");
         List<Object> params = conditionPair.getRight();
-        params.add(queryModel.getPageSize());
-        params.add((queryModel.getPageNum() - 1) * queryModel.getPageSize());
+        params.add(pageQuery.getPageSize());
+        params.add((pageQuery.getPageNum() - 1) * pageQuery.getPageSize());
         PageModel<AuditLogModel> pageModel = new PageModel<>();
         pageModel.setTotal(0L);
         pageModel.setList(Collections.emptyList());

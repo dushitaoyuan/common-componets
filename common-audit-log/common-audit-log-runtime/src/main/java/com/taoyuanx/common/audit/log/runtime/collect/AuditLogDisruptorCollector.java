@@ -11,7 +11,7 @@ import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEvent;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEventFactory;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEventHandler;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ThreadFactory;
@@ -35,7 +35,7 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
 
     private AuditLogModelPool auditLogModelPool;
 
-    public AuditLogDisruptorCollector(AuditLogService auditLogService, Integer ringBufferSize,
+    public AuditLogDisruptorCollector(AuditLogStoreService auditLogService, Integer ringBufferSize,
                                       AuditLogModelPool auditLogModelPool) {
         this.ringBufferSize = ringBufferSize == null ? DEFAULT_RING_BUFFER_SIZE : ringBufferSize;
         this.auditLogModelPool = auditLogModelPool;

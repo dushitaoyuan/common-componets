@@ -3,7 +3,7 @@ package com.taoyuanx.common.audit.log.runtime.collect.lmax;
 import com.lmax.disruptor.EventHandler;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -14,15 +14,15 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class AuditLogEventHandler implements EventHandler<AuditLogEvent> {
-    private final AuditLogService auditLogService;
+    private final AuditLogStoreService auditLogService;
     private final AuditLogModelPool auditLogModelPool;
 
-    public AuditLogEventHandler(AuditLogService auditLogService, AuditLogModelPool auditLogModelPool) {
+    public AuditLogEventHandler(AuditLogStoreService auditLogService, AuditLogModelPool auditLogModelPool) {
         this.auditLogService = auditLogService;
         this.auditLogModelPool = auditLogModelPool;
     }
 
-    public AuditLogEventHandler(AuditLogService auditLogService) {
+    public AuditLogEventHandler(AuditLogStoreService auditLogService) {
         this(auditLogService, null);
     }
 

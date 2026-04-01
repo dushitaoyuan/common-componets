@@ -5,7 +5,7 @@ import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.common.LogException;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.service.AuditLogService;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -16,11 +16,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class AuditLogDirectCollector implements AuditLogCollector {
-    private AuditLogService auditLogService;
+    private AuditLogStoreService auditLogService;
     private AuditLogModelPool auditLogModelPool;
 
 
-    public AuditLogDirectCollector(AuditLogService auditLogService, AuditLogModelPool auditLogModelPool) {
+    public AuditLogDirectCollector(AuditLogStoreService auditLogService, AuditLogModelPool auditLogModelPool) {
         this.auditLogService = auditLogService;
         this.auditLogModelPool = auditLogModelPool;
     }

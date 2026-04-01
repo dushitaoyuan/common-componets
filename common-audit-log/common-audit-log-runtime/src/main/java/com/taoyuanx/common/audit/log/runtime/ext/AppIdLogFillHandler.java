@@ -1,4 +1,4 @@
-package com.taoyuanx.common.audit.log.runtime.impl;
+package com.taoyuanx.common.audit.log.runtime.ext;
 
 import com.taoyuanx.common.audit.log.context.AuditLogContextUtil;
 import com.taoyuanx.common.audit.log.runtime.autoconfigure.AuditLogProperties;
