@@ -4,10 +4,8 @@ import com.alibaba.fastjson2.JSON;
 import com.taoyuanx.common.audit.log.common.LogIdGenerator;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.runtime.ext.AuditLogQueryService;
-import com.taoyuanx.common.audit.log.runtime.model.AuditLogQueryModel;
-import com.taoyuanx.common.audit.log.runtime.model.PageModel;
+import com.taoyuanx.common.audit.log.runtime.model.*;
 import com.taoyuanx.common.audit.log.runtime.autoconfigure.AuditLogProperties;
-import com.taoyuanx.common.audit.log.runtime.model.PageQueryModel;
 import com.taoyuanx.common.audit.log.runtime.sql.SqlTemplateManager;
 import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +20,7 @@ import org.springframework.jdbc.support.KeyHolder;
 
 import java.sql.*;
 import java.util.*;
-import java.util.Date;
+import java.util.stream.Collectors;
 
 /**
  * 基于 JdbcTemplate 的审计日志服务抽象基类
@@ -52,12 +50,12 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         this.logDetailTableName = auditLogProperties.getLogDetailTableName();
         this.auditLogProperties = auditLogProperties;
         this.enableLogDetailTable = auditLogProperties.getEnableLogDetailTable();
-        this.logIdGenerator=logIdGenerator;
+        this.logIdGenerator = logIdGenerator;
     }
 
 
     @Override
-    public PageModel<AuditLogModel> page(PageQueryModel<AuditLogQueryModel> pageQuery) {
+    public PageModel<AuditLogViewModel> page(PageQueryModel<AuditLogQueryModel> pageQuery) {
         AuditLogQueryModel queryModel = pageQuery.getQuery();
         // 计算表名
         String tableName = calcTableName(queryModel.getTenant(), logTableName);
@@ -70,7 +68,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         List<Object> params = conditionPair.getRight();
         params.add(pageQuery.getPageSize());
         params.add((pageQuery.getPageNum() - 1) * pageQuery.getPageSize());
-        PageModel<AuditLogModel> pageModel = new PageModel<>();
+        PageModel<AuditLogViewModel> pageModel = new PageModel<>();
         pageModel.setTotal(0L);
         pageModel.setList(Collections.emptyList());
         try {
@@ -83,9 +81,9 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             return pageModel;
         } catch (EmptyResultDataAccessException e) {
             return pageModel;
-        }catch (Exception e){
-            log.error("page error,query:{}",JSON.toJSONString(queryModel),e);
-            throw  e;
+        } catch (Exception e) {
+            log.error("page error,query:{}", JSON.toJSONString(queryModel), e);
+            throw e;
         }
     }
 
@@ -101,9 +99,9 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             return jdbcTemplate.queryForObject(sql.toString(), Long.class, params.toArray());
         } catch (EmptyResultDataAccessException e) {
             return 0L;
-        }catch (Exception e){
-            log.error("count error,query:{}",JSON.toJSONString(queryModel),e);
-            throw  e;
+        } catch (Exception e) {
+            log.error("count error,query:{}", JSON.toJSONString(queryModel), e);
+            throw e;
         }
     }
 
@@ -129,8 +127,8 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
     }
 
     @Override
-    public AuditLogModel detail(Long logId, String tenant) {
-        AuditLogModel auditLogModel = jdbcTemplate.queryForObject(
+    public AuditLogViewModel detail(Long logId, String tenant) {
+        AuditLogViewModel auditLogModel = jdbcTemplate.queryForObject(
                 "select * from " + calcTableName(tenant, logTableName) + " where id=" + logId, logRowMapper);
         if (auditLogModel == null) {
             return null;
@@ -147,6 +145,80 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         }
         auditLogModel.setOperateDsl(operateDsl);
         return auditLogModel;
+    }
+
+    @Override
+    public ScrollQueryResult scrollQuery(ScrollQueryRequest request) {
+        AuditLogQueryModel queryModel = request.getQuery();
+        String tableName = calcTableName(queryModel.getTenant(), logTableName);
+
+        // 构建查询 SQL
+        StringBuilder sql = new StringBuilder("SELECT * FROM " + tableName + " WHERE 1=1");
+        Pair<String, List<Object>> whereClause = buildQuerySql(queryModel);
+        List<Object> params = new ArrayList<>(whereClause.getRight());
+        sql.append(whereClause.getLeft());
+
+        // 根据方向添加游标条件（按 operate_time + id 双字段）
+        Long cursorId = request.getCursorId();
+        if (cursorId != null && cursorId > 0) {
+            // 优先使用前端传递的游标时间，如果没有则查询数据库
+            Timestamp cursorTime;
+            if (request.getCursorTime() != null) {
+                cursorTime = new Timestamp(request.getCursorTime());
+            } else {
+                cursorTime = getCursorTime(cursorId, tableName);
+            }
+
+            boolean isForward = "forward".equals(request.getDirection());
+
+            // forward = 向时间更新的方向（更大的时间/ID）
+            // backward = 向时间更旧的方向（更小的时间/ID）
+            if (isForward) {
+                sql.append(" AND (op_time > ? OR (op_time = ? AND id > ?))");
+            } else {
+                sql.append(" AND (op_time < ? OR (op_time = ? AND id < ?))");
+            }
+            params.add(cursorTime);
+            params.add(cursorTime);
+            params.add(cursorId);
+        }
+
+        // 后端统一按时间升序排列，保证返回的数据始终是从旧到新
+        sql.append(" ORDER BY op_time ASC, id ASC");
+
+        sql.append(" LIMIT ?");
+        params.add(request.getLimit());
+
+        // 执行查询
+        List<AuditLogViewModel> list = jdbcTemplate.query(sql.toString(),
+                params.toArray(), logRowMapper);
+
+        // 设置返回结果
+        ScrollQueryResult result = new ScrollQueryResult();
+        result.setList(list);
+
+        // 设置下次查询的游标（最后一条记录的 ID 和时间）
+        if (!list.isEmpty()) {
+            AuditLogViewModel lastLog = list.get(list.size() - 1);
+            result.setNextCursor(lastLog.getId());
+            result.setNextCursorTime(lastLog.getOperateTime());
+        }
+
+        return result;
+    }
+
+    /**
+     * 获取游标对应的时间戳
+     */
+    private Timestamp getCursorTime(Long logId, String tableName) {
+        try {
+            Timestamp timestamp = jdbcTemplate.queryForObject(
+                    "SELECT op_time FROM " + tableName + " WHERE id = ?",
+                    Timestamp.class, logId);
+            return timestamp != null ? timestamp : new Timestamp(System.currentTimeMillis());
+        } catch (Exception e) {
+            return new Timestamp(System.currentTimeMillis());
+        }
     }
 
 
@@ -166,8 +238,37 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
      * 使用生成的 ID（雪花算法）保存
      */
     private void saveWithGeneratedId(AuditLogModel auditLogModel, String insertSqlWithId) {
+        List<Object> params = buildParams(auditLogModel, true);
+        jdbcTemplate.update(insertSqlWithId, params.toArray());
+    }
+
+    /**
+     * 使用数据库自增主键保存
+     */
+    private void saveWithAutoIncrementId(AuditLogModel auditLogModel,
+                                         String insertSql) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS);
+            setParams(ps, auditLogModel, false);
+            return ps;
+        }, keyHolder);
+        Number key = keyHolder.getKey();
+        auditLogModel.setId(key.longValue());
+    }
+
+    /**
+     * 构建参数列表（用于单条保存）
+     *
+     * @param auditLogModel 日志对象
+     * @param includeId     是否包含 ID
+     * @return 参数列表
+     */
+    private List<Object> buildParams(AuditLogModel auditLogModel, boolean includeId) {
         List<Object> params = new ArrayList<>(15);
-        params.add(auditLogModel.getId());
+        if (includeId) {
+            params.add(auditLogModel.getId());
+        }
         params.add(auditLogModel.getOperator());
         params.add(auditLogModel.getBizType());
         params.add(auditLogModel.getSubType());
@@ -180,42 +281,42 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         params.add(auditLogModel.getCostTime() != null ? auditLogModel.getCostTime() : 0);
         params.add(truncateError(auditLogModel.getErrorMsg()));
         params.add(auditLogModel.getOpDate());
-        params.add(auditLogModel.getExt() == null ? null : JSON.toJSONString(auditLogModel.getExt()));
+        params.add(getObjectString(auditLogModel.getExt()));
         if (!enableLogDetailTable) {
             params.add(auditLogModel.getOperateDsl());
         }
-        jdbcTemplate.update(insertSqlWithId, params.toArray());
-
+        return params;
     }
 
     /**
-     * 使用数据库自增主键保存
+     * 设置 PreparedStatement 参数（用于单条保存）
+     *
+     * @param ps            PreparedStatement
+     * @param auditLogModel 日志对象
+     * @param includeId     是否包含 ID
+     * @throws SQLException SQL 异常
      */
-    private void saveWithAutoIncrementId(AuditLogModel auditLogModel,
-                                         String insertSql) {
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, auditLogModel.getOperator());
-            ps.setString(2, auditLogModel.getBizType());
-            ps.setString(3, auditLogModel.getSubType());
-            ps.setString(4, auditLogModel.getOperateDesc());
-            ps.setTimestamp(5, new Timestamp(auditLogModel.getOperateTime().getTime()));
-            ps.setString(6, auditLogModel.getOperateObject());
-            ps.setBoolean(7, auditLogModel.getSuccess());
-            ps.setString(8, auditLogModel.getTraceId());
-            ps.setString(9, auditLogModel.getTenant());
-            ps.setLong(10, auditLogModel.getCostTime() != null ? auditLogModel.getCostTime() : 0);
-            ps.setString(11, truncateError(auditLogModel.getErrorMsg()));
-            ps.setString(12, auditLogModel.getOpDate());
-            ps.setString(13, getObjectString(auditLogModel.getExt()));
-            if (!enableLogDetailTable) {
-                ps.setString(14, getObjectString(auditLogModel.getOperateDsl()));
-            }
-            return ps;
-        }, keyHolder);
-        Number key = keyHolder.getKey();
-        auditLogModel.setId(key.longValue());
+    private void setParams(PreparedStatement ps, AuditLogModel auditLogModel, boolean includeId) throws SQLException {
+        int paramIndex = 1;
+        if (includeId) {
+            ps.setLong(paramIndex++, auditLogModel.getId());
+        }
+        ps.setString(paramIndex++, auditLogModel.getOperator());
+        ps.setString(paramIndex++, auditLogModel.getBizType());
+        ps.setString(paramIndex++, auditLogModel.getSubType());
+        ps.setString(paramIndex++, auditLogModel.getOperateDesc());
+        ps.setTimestamp(paramIndex++, new Timestamp(auditLogModel.getOperateTime().getTime()));
+        ps.setString(paramIndex++, auditLogModel.getOperateObject());
+        ps.setBoolean(paramIndex++, auditLogModel.getSuccess());
+        ps.setString(paramIndex++, auditLogModel.getTraceId());
+        ps.setString(paramIndex++, auditLogModel.getTenant());
+        ps.setLong(paramIndex++, auditLogModel.getCostTime() != null ? auditLogModel.getCostTime() : 0);
+        ps.setString(paramIndex++, truncateError(auditLogModel.getErrorMsg()));
+        ps.setString(paramIndex++, auditLogModel.getOpDate());
+        ps.setString(paramIndex++, getObjectString(auditLogModel.getExt()));
+        if (!enableLogDetailTable) {
+            ps.setString(paramIndex, getObjectString(auditLogModel.getOperateDsl()));
+        }
     }
 
     private void saveLogDetail(AuditLogModel auditLogModel) {
@@ -266,11 +367,11 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         }
         if (queryModel.getStartTime() != null) {
             sql.append(" AND op_time >= ?");
-            params.add(new Timestamp(queryModel.getStartTime().getTime()));
+            params.add(new Timestamp(queryModel.getStartTime()));
         }
         if (queryModel.getEndTime() != null) {
             sql.append(" AND op_time <= ?");
-            params.add(new Timestamp(queryModel.getEndTime().getTime()));
+            params.add(new Timestamp(queryModel.getEndTime()));
         }
         if (StringUtils.isNotEmpty(queryModel.getOperateDesc())) {
             sql.append(" AND op_desc like ?");
@@ -312,17 +413,17 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
     /**
      * 日志映射器
      */
-    protected final RowMapper<AuditLogModel> logRowMapper = (rs, rowNum) -> {
+    protected final RowMapper<AuditLogViewModel> logRowMapper = (rs, rowNum) -> {
 
         Map<String, String> columnNameMap = columnNameMap(rs);
-        AuditLogModel model = new AuditLogModel();
+        AuditLogViewModel model = new AuditLogViewModel();
         // 非string列
-        model.setOperateTime(new Date(rs.getTimestamp(getColumnName(columnNameMap, "op_time")).getTime()));
+        model.setOperateTime(rs.getTimestamp(getColumnName(columnNameMap, "op_time")).getTime());
         model.setSuccess(rs.getBoolean(getColumnName(columnNameMap, "success")));
         model.setCostTime(rs.getLong(getColumnName(columnNameMap, "cost_time")));
-        model.setId(rs.getLong(getColumnName(columnNameMap, "id")));
 
 
+        model.setId(getColumnStringValue(columnNameMap, "id", rs));
         model.setOperator(getColumnStringValue(columnNameMap, "operator", rs));
         model.setBizType(getColumnStringValue(columnNameMap, "biz_type", rs));
         model.setSubType(getColumnStringValue(columnNameMap, "sub_biz_type", rs));
@@ -360,5 +461,102 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             columnNameMap.put(columnName.toLowerCase(), columnName);
         }
         return columnNameMap;
+    }
+
+    @Override
+    public void batchSaveAuditLog(List<AuditLogModel> auditLogModels) {
+
+        if (auditLogModels == null || auditLogModels.isEmpty()) {
+            return;
+        }
+        // 确保所有日志都有 ID（批量插入时必须要有 ID）
+        ensureIdsGenerated(auditLogModels);
+        if (auditLogModels.size() == 1) {
+            saveAuditLog(auditLogModels.get(0));
+            return;
+        }
+        try {
+            // 按租户分组（分表场景）
+            auditLogModels.stream().collect(Collectors.groupingBy(AuditLogModel::getTenant)).forEach((tenant, logs) -> {
+                // 逐租户批量插入
+                String tableName = calcTableName(tenant, logTableName);
+                // 批量插入主表
+                batchInsertMainTable(tableName, logs);
+
+                // 批量插入详情表（如果启用）
+                if (enableLogDetailTable) {
+                    batchInsertDetailTable(tenant, logs);
+                }
+            });
+
+        } catch (Exception e) {
+            log.error("Batch save audit log error, size: {}", auditLogModels.size(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 确保所有日志都有 ID
+     * <p>批量插入时，如果使用数据库自增 ID，无法高效返回生成的 ID，会导致详情表插入失败</p>
+     * <p>因此批量保存时强制使用 ID 生成器（雪花算法）</p>
+     */
+    private void ensureIdsGenerated(List<AuditLogModel> auditLogModels) {
+        if (logIdGenerator != null) {
+            for (AuditLogModel model : auditLogModels) {
+                if (model.getId() == null) {
+                    model.setId(logIdGenerator.nextId());
+                }
+            }
+        } else {
+            // 如果没有配置 ID 生成器，记录警告（可能导致详情表插入失败）
+            log.warn("Batch save without ID generator configured. If detail table is enabled, insert may fail.");
+        }
+    }
+
+    /**
+     * 批量插入主表
+     */
+    private void batchInsertMainTable(String tableName, List<AuditLogModel> logs) {
+        if (logs == null || logs.isEmpty()) {
+            return;
+        }
+        String sql = SqlTemplateManager.getInsertSqlWithId(tableName, enableLogDetailTable);
+        jdbcTemplate.batchUpdate(sql, logs, logs.size(), (ps, log) -> {
+            try {
+                setParams(ps, log, true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Set batch params error", e);
+            }
+        });
+    }
+
+    /**
+     * 批量插入详情表
+     */
+    private void batchInsertDetailTable(String tenant, List<AuditLogModel> logs) {
+        if (logs == null || logs.isEmpty()) {
+            return;
+        }
+
+        String detailTableName = calcTableName(tenant, logDetailTableName);
+        String insertDetailSql = SqlTemplateManager.getInsertDetailSql(detailTableName);
+
+        // 过滤出有详情的日志
+        List<AuditLogModel> logsWithDetail = new ArrayList<>();
+        for (AuditLogModel log : logs) {
+            String operateDsl = getObjectString(log.getOperateDsl());
+            if (operateDsl != null && !operateDsl.isEmpty()) {
+                logsWithDetail.add(log);
+            }
+        }
+
+        if (logsWithDetail.isEmpty()) {
+            return;
+        }
+
+        jdbcTemplate.batchUpdate(insertDetailSql, logsWithDetail, logsWithDetail.size(), (ps, log) -> {
+            ps.setLong(1, log.getId());
+            ps.setString(2, getObjectString(log.getOperateDsl()));
+        });
     }
 }

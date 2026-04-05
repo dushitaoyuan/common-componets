@@ -69,6 +69,12 @@ public class AuditLogProperties {
     private Integer objectPoolInitSize;
 
     /**
+     * 对象池自适应清理间隔ms 建议值: 低频30000, 普通10000, 高频5000
+     */
+    private Long objectPoolCleanupIntervalMs;
+
+
+    /**
      * 是否使用disruptor队列
      */
     private Boolean useDisruptor;
@@ -106,6 +112,21 @@ public class AuditLogProperties {
      * 是否启用日志详情表,默认不启用
      */
     private Boolean enableLogDetailTable;
+    
+    /**
+     * 是否启用批量保存（仅异步模式有效）
+     */
+    private Boolean batchEnabled;
+    
+    /**
+     * 批量保存大小
+     */
+    private Integer batchSize;
+    
+    /**
+     * 批量保存最大等待时间(ms)
+     */
+    private Long batchMaxWaitTime;
 
 
     /**
@@ -124,20 +145,24 @@ public class AuditLogProperties {
                 setDefaultValue("async", false);
                 setDefaultValue("useObjectPool", false);
                 setDefaultValue("useDisruptor", false);
+                setDefaultValue("batchEnabled", false);  // 不启用批量
                 break;
-
             case "normal":
                 setNormal();
                 break;
-
             case "high":
-                // 高频场景：使用Disruptor收集器，较大的对象池和环形队列大小
+                // 高频场景：Disruptor无锁队列 + 立即归还模式
                 setDefaultValue("async", true);
                 setDefaultValue("useDisruptor", true);
-                setDefaultValue("ringBufferSize", 4096);
+                setDefaultValue("ringBufferSize", 8192);         // 增大环形缓冲区,应对突发流量
                 setDefaultValue("useObjectPool", true);
                 setDefaultValue("objectPoolMaxSize", 4096);
                 setDefaultValue("objectPoolInitSize", 200);
+                setDefaultValue("batchEnabled", true);           // 启用批量
+                setDefaultValue("batchSize", 100);               // 适中批量大小,平衡DB性能
+                setDefaultValue("batchMaxWaitTime", 100L);       // 大幅缩短等待,减少对象占用时间
+                setDefaultValue("objectPoolCleanupIntervalMs", 5000L);
+
                 break;
             default:
                 // 默认普通场景
@@ -145,21 +170,37 @@ public class AuditLogProperties {
                 break;
         }
         // 设置兜底默认值
+        setDefaultValue("async", false);
         setDefaultValue("allowNestLog", true);
+
+
+        // 异步队列默认配置
         setDefaultValue("logQueueSize", 1000);
-        setDefaultValue("useObjectPool", true);
+        setDefaultValue("collectInterval", 50);
+        setDefaultValue("queueFullWaitTime", 2000L);
+
+
+
+        // 对象池默认配置
+        setDefaultValue("useObjectPool", false);
         setDefaultValue("objectPoolMaxSize", 512);
         setDefaultValue("objectPoolInitSize", 50);
+        setDefaultValue("objectPoolCleanupIntervalMs", 30000L);
+
+        //  Disruptor默认配置
         setDefaultValue("useDisruptor", false);
         setDefaultValue("ringBufferSize", 1024);
         setDefaultValue("enableLogDetailTable", false);
         setDefaultValue("logTableName", "op_log");
         setDefaultValue("logDetailTableName", "op_log_detail");
-        /**
-         * 分表默认配置
-         */
+        // 分表默认配置
         setDefaultValue("enableSharding", false);
         setDefaultValue("shardingTableCount", 1);
+        
+        // 批量配置兜底默认值
+        setDefaultValue("batchEnabled", false);
+        setDefaultValue("batchSize", 100);
+        setDefaultValue("batchMaxWaitTime", 500L);
 
 
 
@@ -171,14 +212,18 @@ public class AuditLogProperties {
     }
 
     private void setNormal() {
-        // 普通场景：使用jdk队列异步收集，较小的对象池
+        // 普通场景：异步收集 + 小批量优化
         setDefaultValue("async", true);
         setDefaultValue("logQueueSize", 1000);
         setDefaultValue("collectInterval", 50);
         setDefaultValue("useObjectPool", true);
-        setDefaultValue("objectPoolMaxSize", 512);
+        setDefaultValue("objectPoolMaxSize", 256);      // 降低池大小,提高复用率
         setDefaultValue("objectPoolInitSize", 50);
         setDefaultValue("useDisruptor", false);
+        setDefaultValue("batchEnabled", true);           // 启用小批量
+        setDefaultValue("batchSize", 30);                // 小批量平衡性能和对象占用
+        setDefaultValue("batchMaxWaitTime", 200L);       // 较短等待时间
+        setDefaultValue("objectPoolCleanupIntervalMs", 10000L);
     }
 
     /**

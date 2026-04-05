@@ -36,7 +36,8 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
     private AuditLogModelPool auditLogModelPool;
 
     public AuditLogDisruptorCollector(AuditLogStoreService auditLogService, Integer ringBufferSize,
-                                      AuditLogModelPool auditLogModelPool) {
+                                      AuditLogModelPool auditLogModelPool,
+                                      Boolean batchEnabled, Integer batchSize) {
         this.ringBufferSize = ringBufferSize == null ? DEFAULT_RING_BUFFER_SIZE : ringBufferSize;
         this.auditLogModelPool = auditLogModelPool;
         AuditLogEventFactory eventFactory = new AuditLogEventFactory();
@@ -52,13 +53,21 @@ public class AuditLogDisruptorCollector implements AuditLogCollector {
                 ProducerType.MULTI,
                 new com.lmax.disruptor.BlockingWaitStrategy()
         );
-        disruptor.handleEventsWith(new AuditLogEventHandler(auditLogService, auditLogModelPool));
+        
+        boolean enableBatch = batchEnabled != null && batchEnabled;
+        int size = batchSize != null && batchSize > 0 ? batchSize : 100;
+        disruptor.handleEventsWith(new AuditLogEventHandler(auditLogService, auditLogModelPool, enableBatch, size));
 
         ringBuffer = disruptor.start();
         started = true;
 
-        log.info("AuditLogDisruptorCollector started with ring buffer size: {}",
-                this.ringBufferSize);
+        log.info("AuditLogDisruptorCollector started with ring buffer size: {}, batch enabled: {}",
+                this.ringBufferSize, enableBatch);
+    }
+    
+    public AuditLogDisruptorCollector(AuditLogStoreService auditLogService, Integer ringBufferSize,
+                                      AuditLogModelPool auditLogModelPool) {
+        this(auditLogService, ringBufferSize, auditLogModelPool, true, 100);
     }
 
     @Override

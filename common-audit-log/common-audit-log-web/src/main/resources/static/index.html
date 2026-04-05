@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审计日志系统 - 专业操作日志追踪与分析平台</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+            --dark-color: #1e293b;
+            --light-color: #f8fafc;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+            --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--light-color);
+            color: var(--dark-color);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* 导航栏 */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-sm);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 15px 0;
+        }
+        
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo i {
+            font-size: 28px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .nav-links a {
+            color: var(--dark-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Hero区域 */
+        .hero {
+            background: var(--gradient-1);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            padding: 100px 20px 60px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+        }
+        
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            animation: fadeInUp 0.8s ease;
+        }
+        
+        .hero p {
+            font-size: 20px;
+            margin-bottom: 40px;
+            opacity: 0.95;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease 0.4s both;
+        }
+        
+        .btn {
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: white;
+            color: var(--primary-color);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+        
+        .btn-secondary:hover {
+            background: white;
+            color: var(--primary-color);
+        }
+        
+        /* 特性区域 */
+        .features {
+            padding: 100px 20px;
+            background: white;
+        }
+        
+        .section-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .section-title h2 {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--dark-color);
+            margin-bottom: 15px;
+        }
+        
+        .section-title p {
+            font-size: 18px;
+            color: #64748b;
+        }
+        
+        .features-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-1);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            margin-bottom: 25px;
+        }
+        
+        .feature-icon.purple { background: var(--gradient-1); }
+        .feature-icon.pink { background: var(--gradient-2); }
+        .feature-icon.blue { background: var(--gradient-3); }
+        
+        .feature-card h3 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--dark-color);
+        }
+        
+        .feature-card p {
+            color: #64748b;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+        
+        .feature-list {
+            list-style: none;
+        }
+        
+        .feature-list li {
+            padding: 8px 0;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-list li i {
+            color: var(--success-color);
+            font-size: 16px;
+        }
+        
+        /* 查询能力区域 */
+        .capabilities {
+            padding: 100px 20px;
+            background: var(--light-color);
+        }
+        
+        .capabilities-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .capability-card {
+            background: white;
+            border-radius: 16px;
+            padding: 35px 30px;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .capability-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .capability-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: var(--primary-color);
+        }
+        
+        .capability-card h3 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--dark-color);
+        }
+        
+        .capability-card p {
+            color: #64748b;
+            line-height: 1.7;
+        }
+        
+        /* CTA区域 */
+        .cta {
+            padding: 100px 20px;
+            background: var(--gradient-1);
+            text-align: center;
+            color: white;
+        }
+        
+        .cta h2 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .cta p {
+            font-size: 18px;
+            margin-bottom: 40px;
+            opacity: 0.95;
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--dark-color);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        
+        .footer p {
+            opacity: 0.8;
+        }
+        
+        /* 动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 36px;
+            }
+            
+            .hero p {
+                font-size: 16px;
+            }
+            
+            .section-title h2 {
+                font-size: 32px;
+            }
+            
+            .features-grid,
+            .capabilities-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                <span>审计日志系统</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">核心特性</a>
+                <a href="#capabilities">查询能力</a>
+                <a href="log.html">分页查询</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero区域 -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>专业级审计日志追踪与分析平台</h1>
+            <p>高性能、高可用的企业级操作日志解决方案，支持海量数据实时追踪、智能分析与可视化展示</p>
+            <div class="hero-buttons">
+                <a href="log.html" class="btn btn-primary">
+                    <i class="fas fa-search"></i>
+                    开始查询日志
+                </a>
+                <a href="#features" class="btn btn-secondary">
+                    <i class="fas fa-info-circle"></i>
+                    了解更多
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 核心特性 -->
+    <section class="features" id="features">
+        <div class="section-title">
+            <h2>核心特性</h2>
+            <p>强大的功能满足企业级日志管理需求</p>
+        </div>
+        
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon purple">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <h3>高性能异步采集</h3>
+                <p>基于 Disruptor 实现的高性能异步日志收集，零阻塞业务线程，支持百万级 TPS</p>
+                <ul class="feature-list">
+                    <li><i class="fas fa-check"></i> 无锁环形队列设计</li>
+                    <li><i class="fas fa-check"></i> 批量写入优化</li>
+                    <li><i class="fas fa-check"></i> 内存池复用机制</li>
+                    <li><i class="fas fa-check"></i> 自动背压控制</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon pink">
+                    <i class="fas fa-code-branch"></i>
+                </div>
+                <h3>智能差异对比</h3>
+                <p>自动比对操作前后数据变化，精准识别字段级差异，支持复杂对象深度对比</p>
+                <ul class="feature-list">
+                    <li><i class="fas fa-check"></i> 字段级别差异追踪</li>
+                    <li><i class="fas fa-check"></i> JSON 可视化对比</li>
+                    <li><i class="fas fa-check"></i> 集合类型智能处理</li>
+                    <li><i class="fas fa-check"></i> 自定义对比策略</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon purple">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <h3>灵活分表策略</h3>
+                <p>支持单表和分表两种模式，可按租户或时间维度自动分表，轻松应对海量数据</p>
+                <ul class="feature-list">
+                    <li><i class="fas fa-check"></i> 按租户分表</li>
+                    <li><i class="fas fa-check"></i> 按时间分表</li>
+                    <li><i class="fas fa-check"></i> 动态表名路由</li>
+                    <li><i class="fas fa-check"></i> 透明数据访问</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon pink">
+                    <i class="fas fa-plug"></i>
+                </div>
+                <h3>声明式注解集成</h3>
+                <p>通过简单的 @OperateLog 注解即可接入，支持 SpEL 表达式动态提取参数</p>
+                <ul class="feature-list">
+                    <li><i class="fas fa-check"></i> 零侵入式设计</li>
+                    <li><i class="fas fa-check"></i> SpEL 表达式支持</li>
+                    <li><i class="fas fa-check"></i> 自定义填充器</li>
+                    <li><i class="fas fa-check"></i> 条件化日志记录</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon blue">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h3>多维度查询分析</h3>
+                <p>支持按业务类型、操作人、时间范围等多维度组合查询，快速定位目标日志</p>
+                <ul class="feature-list">
+                    <li><i class="fas fa-check"></i> 多条件组合筛选</li>
+                    <li><i class="fas fa-check"></i> 模糊搜索支持</li>
+                    <li><i class="fas fa-check"></i> 时间范围限制</li>
+                    <li><i class="fas fa-check"></i> TraceID 链路追踪</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 查询能力 -->
+    <section class="capabilities" id="capabilities">
+        <div class="section-title">
+            <h2>强大的查询能力</h2>
+            <p>提供多种查询方式，满足不同场景需求</p>
+        </div>
+        
+        <div class="capabilities-grid">
+            <div class="capability-card">
+                <div class="capability-icon">
+                    <i class="fas fa-table"></i>
+                </div>
+                <h3>分页查询</h3>
+                <p>传统的分页查询模式，适合精确查找特定页面的数据，支持完整的条件筛选和排序</p>
+            </div>
+            <div class="capability-card">
+                <div class="capability-icon">
+                    <i class="fas fa-eye"></i>
+                </div>
+                <h3>详情查看</h3>
+                <p>查看单条日志的完整信息，包括操作前后的数据快照、耗时、异常信息等详细内容</p>
+            </div>
+            
+            <div class="capability-card">
+                <div class="capability-icon">
+                    <i class="fas fa-project-diagram"></i>
+                </div>
+                <h3>上下文滚动查询</h3>
+                <p>选中任意日志记录，一键查看其前后的操作上下文，通过滚动加载逐步展开完整的操作流程和时间线</p>
+            </div>
+            
+            <div class="capability-card">
+                <div class="capability-icon">
+                    <i class="fas fa-not-equal"></i>
+                </div>
+                <h3>差异对比</h3>
+                <p>可视化展示操作前后的数据变化，支持 JSON 格式的美化显示和逐字段对比</p>
+            </div>
+            
+            <div class="capability-card">
+                <div class="capability-icon">
+                    <i class="fas fa-link"></i>
+                </div>
+                <h3>链路追踪</h3>
+                <p>通过 TraceID 关联同一请求的所有操作日志，实现分布式系统的完整调用链追踪</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA区域 -->
+    <section class="cta">
+        <h2>立即开始使用</h2>
+        <p>体验强大的审计日志查询与分析功能</p>
+        <a href="log.html" class="btn btn-primary" style="font-size: 18px; padding: 18px 50px;">
+            <i class="fas fa-rocket"></i>
+            进入日志查询
+        </a>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2026 审计日志系统 | 专业、高效、可靠的日志追踪解决方案</p>
+    </footer>
+
+    <script>
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+        
+        // 滚动动画
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+        
+        // 观察所有卡片
+        document.querySelectorAll('.feature-card, .capability-card').forEach(card => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(30px)';
+            card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(card);
+        });
+    </script>
+</body>
+</html>

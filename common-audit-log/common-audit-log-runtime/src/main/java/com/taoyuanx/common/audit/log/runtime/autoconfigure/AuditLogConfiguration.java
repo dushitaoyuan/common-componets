@@ -66,9 +66,12 @@ public class AuditLogConfiguration {
         AuditLogContextUtil.initLocal(auditLogProperties.getAllowNestLog() == null || Objects.equals(auditLogProperties.getAllowNestLog(), true) ? true : false);
         if (Objects.equals(auditLogProperties.getAsync(), Boolean.TRUE)) {
             if (Objects.equals(auditLogProperties.getUseDisruptor(), Boolean.TRUE)) {
-                return new AuditLogDisruptorCollector(auditLogService, auditLogProperties.getRingBufferSize(), auditLogModelPool);
+                return new AuditLogDisruptorCollector(auditLogService, auditLogProperties.getRingBufferSize(), auditLogModelPool,
+                    auditLogProperties.getBatchEnabled(), auditLogProperties.getBatchSize());
             } else {
-                return new AuditLogAsyncCollector(auditLogService, auditLogProperties.getLogQueueSize(), auditLogProperties.getCollectInterval(), auditLogProperties.getQueueFullWaitTime(), auditLogModelPool);
+                return new AuditLogAsyncCollector(auditLogService, auditLogProperties.getLogQueueSize(), 
+                    auditLogProperties.getCollectInterval(), auditLogProperties.getQueueFullWaitTime(), auditLogModelPool,
+                    auditLogProperties.getBatchEnabled(), auditLogProperties.getBatchSize(), auditLogProperties.getBatchMaxWaitTime());
             }
         } else {
             return new AuditLogDirectCollector(auditLogService, auditLogModelPool);
@@ -77,9 +80,9 @@ public class AuditLogConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnExpression("${audit.log.useObjectPool:false} or '${audit.log.logScene:normal}'=='normal'")
+    @ConditionalOnExpression("${audit.log.useObjectPool:false} or '${audit.log.logScene:normal}'=='normal' or '${audit.log.logScene:normal}'=='high'")
     public AuditLogModelPool auditLogModelPool(@Autowired AuditLogProperties auditLogProperties) {
-        return new AuditLogModelPool(auditLogProperties.getObjectPoolMaxSize(), auditLogProperties.getObjectPoolInitSize());
+        return new AuditLogModelPool(auditLogProperties.getObjectPoolMaxSize(), auditLogProperties.getObjectPoolInitSize(),auditLogProperties.getObjectPoolCleanupIntervalMs());
 
     }
 
@@ -87,9 +90,15 @@ public class AuditLogConfiguration {
     @Bean
     @ConditionalOnMissingBean(AuditLogStoreService.class)
     public AuditLogStoreService auditLogService(JdbcTemplate jdbcTemplate, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) LogIdGenerator logIdGenerator) {
+
+        LogIdGenerator tempLogIdGenerator = logIdGenerator;
+        if(Objects.equals(auditLogProperties.getBatchEnabled(),Boolean.TRUE) ||( Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1)){
+            // 分表或批量 id生成器必须要有
+            tempLogIdGenerator=logIdGenerator == null ? (LogIdGenerator) () -> SnowflakeIdGenerator.getInstance().nextId() : logIdGenerator;
+        }
         // 根据配置选择使用单表还是分表实现
         if (Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1) {
-            return new ShardingAuditLogService(jdbcTemplate, auditLogProperties, logIdGenerator == null ? (LogIdGenerator) () -> SnowflakeIdGenerator.getInstance().nextId() : logIdGenerator);
+            return new ShardingAuditLogService(jdbcTemplate, auditLogProperties,tempLogIdGenerator);
         } else {
             return new SingleTableAuditLogService(jdbcTemplate, auditLogProperties, logIdGenerator);
         }

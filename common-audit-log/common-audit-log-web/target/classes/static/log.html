@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>审计日志查询</title>
+    <title>审计日志分页查询</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <!-- json对比 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html@3.4.48/bundles/css/diff2html.min.css">
@@ -61,12 +61,31 @@
             text-align: center;
             margin-bottom: 30px;
             padding: 20px 0;
+            position: relative;
         }
 
         .header h1 {
             color: var(--dark-color);
             font-size: 2.2rem;
             margin-bottom: 10px;
+        }
+
+        .back-home {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .back-home:hover {
+            transform: translateX(-5px);
+            color: #4f46e5;
         }
 
         .header p {
@@ -589,6 +608,15 @@
             max-height: 300px;
             overflow-y: auto;
         }
+        
+        /* 上下文弹窗中的当前日志高亮 */
+        #contextLogList tr[style*="background-color: #fef3c7"] {
+            transition: background-color 0.3s ease;
+        }
+        
+        #contextLogList tr[style*="background-color: #fef3c7"]:hover {
+            background-color: #fde68a !important;
+        }
 
         @media (max-width: 768px) {
             .container {
@@ -634,7 +662,10 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-clipboard-list"></i> 审计日志查询</h1>
+        <a href="index.html" class="back-home">
+            <i class="fas fa-arrow-left"></i> 返回首页
+        </a>
+        <h1><i class="fas fa-clipboard-list"></i> 审计日志分页查询</h1>
     </div>
 
     <div class="card">
@@ -659,8 +690,8 @@
                     <input type="text" id="operator" placeholder="操作人">
                 </div>
                 <div class="form-group">
-                    <label for="tenant"><i class="fas fa-building"></i> 租户</label>
-                    <input type="text" id="tenant" placeholder="租户">
+                    <label for="tenant"><i class="fas fa-building"></i> 应用标识<span style="color: red;">*</span></label>
+                    <input type="text" id="tenant" placeholder="应用标识">
                 </div>
                 <div class="form-group">
                     <label for="success"><i class="fas fa-check-circle"></i> 操作结果</label>
@@ -731,6 +762,7 @@
                 <table id="logTable">
                     <thead>
                     <tr>
+                        <th>日志ID</th>
                         <th>操作人</th>
                         <th>业务类型</th>
                         <th>业务子类型</th>
@@ -739,7 +771,7 @@
                         <th>操作时间</th>
                         <th>操作结果</th>
                         <th>traceId</th>
-                        <th>租户</th>
+                        <th>应用标识</th>
                         <th>操作</th>
                     </tr>
                     </thead>
@@ -764,7 +796,77 @@
     </div>
 </div>
 
-<!-- 弹窗 -->
+<!-- 上下文弹窗 -->
+<div class="modal" id="contextModal">
+    <div class="modal-content" style="max-width: 1200px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-stream"></i> 日志上下文 - 当前ID: <span id="currentLogId">-</span></h2>
+            <button class="modal-close" onclick="closeContextModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 控制栏 -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: var(--header-bg-color); border-radius: 6px;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label style="font-weight: 500;">每次加载:</label>
+                    <select id="contextScrollLimit" style="padding: 5px 10px; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <option value="10">10条</option>
+                        <option value="20">20条</option>
+                        <option value="30" selected>30条</option>
+                        <option value="50">50条</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="refreshContextLogs()">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                </div>
+                <div style="color: #64748b; font-size: 0.9rem;">
+                    <span id="contextLogCount">共 0 条记录</span>
+                </div>
+            </div>
+            
+            <!-- 向前加载按钮 -->
+            <div style="text-align: center; margin-bottom: 10px;">
+                <button id="btnContextPrev" class="btn btn-secondary" onclick="loadContextPrevious()">
+                    <i class="fas fa-arrow-up"></i> 加载更早记录
+                </button>
+            </div>
+            
+            <!-- 日志列表 -->
+            <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>日志ID</th>
+                        <th>操作时间</th>
+                        <th>操作人</th>
+                        <th>业务类型</th>
+                        <th>操作描述</th>
+                        <th>操作对象</th>
+                        <th>操作结果</th>
+                        <th>应用标识</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="contextLogList">
+                    <!-- 动态填充 -->
+                    </tbody>
+                </table>
+                <div id="contextNoData" class="no-data" style="display: none;">
+                    <i class="fas fa-inbox"></i>
+                    <p>暂无数据</p>
+                </div>
+            </div>
+            
+            <!-- 向后加载按钮 -->
+            <div style="text-align: center; margin-top: 10px;">
+                <button id="btnContextNext" class="btn btn-secondary" onclick="loadContextNext()">
+                    <i class="fas fa-arrow-down"></i> 加载更新记录
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情弹窗 -->
 <div class="modal" id="detailModal">
     <div class="modal-content">
         <div class="modal-header">
@@ -798,7 +900,7 @@
                     <td id="detailSuccess">-</td>
                 </tr>
                 <tr>
-                    <th>租户</th>
+                    <th>应用标识</th>
                     <td id="detailTenant">-</td>
                 </tr>
                 <tr>
@@ -837,6 +939,16 @@
     let pageSize = 30;
     // 总记录数
     let totalRecords = 0;
+    
+    // 上下文弹窗相关变量
+    let contextLogs = [];
+    let contextCurrentLogId = null;
+    let contextForwardCursor = null;
+    let contextForwardCursorTime = null;
+    let contextBackwardCursor = null;
+    let contextBackwardCursorTime = null;
+    let contextHasForward = false;
+    let contextHasBackward = false;
 
     // 页面加载完成后初始化
     document.addEventListener('DOMContentLoaded', function () {
@@ -875,6 +987,13 @@
             showLoading(false);
             return;
         }
+         // 应用标识必填
+        if (!document.getElementById('tenant').value) {
+            alert('应用标识不可为空');
+            showLoading(false);
+            return;
+        }
+
 
         // 验证时间范围不能超过24小时
         if (startTimeValue && endTimeValue) {
@@ -906,15 +1025,17 @@
         const queryModel = {
             pageNum: currentPage,
             pageSize: pageSize,
-            bizType: document.getElementById('bizType').value || null,
-            subType: document.getElementById('subType').value || null,
-            operator: document.getElementById('operator').value || null,
-            tenant: document.getElementById('tenant').value || null,
-            operateObject: document.getElementById('operateObject').value || null,
-            operateDesc: document.getElementById('operateDesc').value || null,
-            traceId: document.getElementById('traceId').value || null,
-            startTime: startTimeValue ? new Date(startTimeValue).getTime() : null,
-            endTime: endTimeValue ? new Date(endTimeValue).getTime() : null
+            query:{
+                bizType: document.getElementById('bizType').value || null,
+                subType: document.getElementById('subType').value || null,
+                operator: document.getElementById('operator').value || null,
+                tenant: document.getElementById('tenant').value || null,
+                operateObject: document.getElementById('operateObject').value || null,
+                operateDesc: document.getElementById('operateDesc').value || null,
+                traceId: document.getElementById('traceId').value || null,
+                startTime: startTimeValue ? new Date(startTimeValue).getTime() : null,
+                endTime: endTimeValue ? new Date(endTimeValue).getTime() : null
+            }
         };
 
         const successValue = document.getElementById('success').value;
@@ -960,6 +1081,7 @@
 
         tbody.innerHTML = logs.map((log, index) => `
                 <tr>
+                    <td>${log.id || '-'}</td>
                     <td>${log.operator || '-'}</td>
                     <td>${log.bizType || '-'}</td>
                     <td>${log.subType || '-'}</td>
@@ -974,8 +1096,11 @@
                     <td>${log.traceId || '-'}</td>
                      <td>${log.tenant || '-'}</td>
                     <td>
-                        <button class="btn btn-info" onclick="showDetail(${log.id})">
+                        <button class="btn btn-info" onclick="showDetail('${log.id}','${log.tenant}')">
                             <i class="fas fa-eye"></i> 查看详情
+                        </button>
+                        <button class="btn btn-secondary" onclick="openContextModal('${log.id}', '${log.tenant}')" style="margin-left: 5px;">
+                            <i class="fas fa-list-ul"></i> 详细上下文
                         </button>
                     </td>
                 </tr>
@@ -983,13 +1108,13 @@
     }
 
     // 显示详情弹窗
-    function showDetail(logId) {
+    function showDetail(logId,tenant) {
         // 显示加载状态
         document.getElementById('detailOperateDslContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p>正在加载详情...</p></div>';
         document.getElementById('detailModal').classList.add('open');
 
         // 请求后端接口获取详情数据
-        fetch(`/api/audit/logs/detail?logId=${logId}`)
+        fetch(`/api/audit/logs/detail?logId=${logId}&tenant=${tenant}`)
             .then(response => response.json())
             .then(data => {
                 const log = data.data;
@@ -1062,6 +1187,326 @@
   function showJsonViewErrorMsg(message) {
     document.getElementById('detailOperateDslContainer').innerHTML = '<div class="json-container">'+message+'</div>';
   }
+  
+    // ========== 上下文弹窗相关函数 ==========
+    
+    // 打开上下文弹窗
+    function openContextModal(logId, tenant) {
+        contextCurrentLogId = logId;
+        document.getElementById('currentLogId').textContent = logId;
+        
+        // 显示弹窗
+        document.getElementById('contextModal').classList.add('open');
+        
+        // 重置数据
+        contextLogs = [];
+        contextForwardCursor = null;
+        contextForwardCursorTime = null;
+        contextBackwardCursor = null;
+        contextBackwardCursorTime = null;
+        contextHasForward = false;
+        contextHasBackward = false;
+        
+        // 加载初始数据（前后各 30 条）
+        loadContextAround(logId, tenant);
+    }
+    
+    // 关闭上下文弹窗
+    function closeContextModal() {
+        document.getElementById('contextModal').classList.remove('open');
+    }
+    
+    // 围绕某条日志查询上下文
+    function loadContextAround(logId, tenant) {
+        const limit = parseInt(document.getElementById('contextScrollLimit').value) || 30;
+        
+        // 获取查询条件
+        const queryModel = {
+            bizType: document.getElementById('bizType').value || null,
+            subType: document.getElementById('subType').value || null,
+            operator: document.getElementById('operator').value || null,
+            tenant: tenant || document.getElementById('tenant').value || null,
+            operateObject: document.getElementById('operateObject').value || null,
+            operateDesc: document.getElementById('operateDesc').value || null,
+            traceId: document.getElementById('traceId').value || null,
+            startTime: document.getElementById('startTime').value ? new Date(document.getElementById('startTime').value).getTime() : null,
+            endTime: document.getElementById('endTime').value ? new Date(document.getElementById('endTime').value).getTime() : null
+        };
+        
+        const successValue = document.getElementById('success').value;
+        if (successValue !== '') {
+            queryModel.success = successValue === 'true';
+        }
+        
+        // 先获取当前日志详情
+        fetch('/api/audit/logs/detail?logId=' + logId + '&tenant=' + tenant)
+            .then(response => response.json())
+            .then(result => {
+                const currentLog = result.data || result;
+                
+                // 查询前面的（更早的记录）
+                return fetch('/api/audit/logs/scroll-query', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        cursorId: logId,
+                        direction: 'backward',
+                        limit: limit,
+                        query: queryModel
+                    })
+                }).then(r => r.json()).then(r => {
+                    return {current: currentLog, backward: (r.data || r).list || []};
+                });
+            })
+            .then(data => {
+                // 查询后面的（更新的记录）
+                return fetch('/api/audit/logs/scroll-query', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        cursorId: logId,
+                        direction: 'forward',
+                        limit: limit,
+                        query: queryModel
+                    })
+                }).then(r => r.json()).then(r => {
+                    return {current: data.current, backward: data.backward, forward: (r.data || r).list || []};
+                });
+            })
+            .then(data => {
+                // 合并数据：向后（更早）+ 当前 + 向前（更新）
+                // 使用 asc 排序后，backward 已经是按时间从旧到新，不需要反转
+                contextLogs = data.backward.concat([data.current]).concat(data.forward);
+                
+        // 设置游标
+                // backward 是按时间升序排列的，第一个是最早的，最后一个是最近的
+                if (data.forward.length > 0) {
+                    const lastForward = data.forward[data.forward.length - 1];
+                    contextForwardCursor = lastForward.id;
+                    contextForwardCursorTime = lastForward.operateTime;
+                } else {
+                    contextForwardCursor = null;
+                    contextForwardCursorTime = null;
+                }
+                
+                if (data.backward.length > 0) {
+                    const firstBackward = data.backward[0];
+                    contextBackwardCursor = firstBackward.id;
+                    contextBackwardCursorTime = firstBackward.operateTime;
+                } else {
+                    contextBackwardCursor = null;
+                    contextBackwardCursorTime = null;
+                }
+                
+                // 判断是否还有更多数据
+                contextHasForward = data.forward.length >= limit;
+                contextHasBackward = data.backward.length >= limit;
+                
+                // 渲染列表
+                renderContextLogs();
+                updateContextUI();
+            })
+            .catch(error => {
+                console.error('加载失败:', error);
+                alert('加载上下文失败');
+            });
+    }
+    
+    // 刷新上下文日志
+    function refreshContextLogs() {
+        if (contextCurrentLogId) {
+            const tenant = document.getElementById('tenant').value;
+            loadContextAround(contextCurrentLogId, tenant);
+        }
+    }
+    
+    // 加载更早的记录（向后）
+    function loadContextPrevious() {
+        const limit = parseInt(document.getElementById('contextScrollLimit').value) || 30;
+        
+        const queryModel = {
+            bizType: document.getElementById('bizType').value || null,
+            subType: document.getElementById('subType').value || null,
+            operator: document.getElementById('operator').value || null,
+            tenant: document.getElementById('tenant').value || null,
+            operateObject: document.getElementById('operateObject').value || null,
+            operateDesc: document.getElementById('operateDesc').value || null,
+            traceId: document.getElementById('traceId').value || null,
+            startTime: document.getElementById('startTime').value ? new Date(document.getElementById('startTime').value).getTime() : null,
+            endTime: document.getElementById('endTime').value ? new Date(document.getElementById('endTime').value).getTime() : null
+        };
+        
+        const successValue = document.getElementById('success').value;
+        if (successValue !== '') {
+            queryModel.success = successValue === 'true';
+        }
+        
+        fetch('/api/audit/logs/scroll-query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cursorId: contextBackwardCursor,
+                cursorTime: contextBackwardCursorTime,
+                direction: 'backward',
+                limit: limit,
+                query: queryModel
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            const data = result.data || result;
+            const newLogs = data.list || [];
+            
+            console.log('加载更早记录:', {
+                cursorId: contextBackwardCursor,
+                cursorTime: contextBackwardCursorTime,
+                newLogsCount: newLogs.length,
+                newLogsIds: newLogs.map(l => l.id),
+                nextCursor: data.nextCursor,
+                nextCursorTime: data.nextCursorTime
+            });
+            
+            if (newLogs.length === 0) {
+                // 没有更多数据，给出友好提示
+                alert('已经是第一条记录了，没有更早的数据');
+                contextHasBackward = false;
+                updateContextUI();
+                return;
+            }
+            
+            // 将新记录添加到前面（因为是更早的记录）
+            // newLogs 是按时间升序排列的，如 [5,6,7]，直接拼接到前面即可
+            contextLogs = newLogs.concat(contextLogs);
+            
+            // 更新游标为第一条记录的 ID 和时间
+            const firstLog = newLogs[0];
+            contextBackwardCursor = firstLog.id;
+            contextBackwardCursorTime = firstLog.operateTime;
+            
+            contextHasBackward = newLogs.length >= limit;
+            
+            console.log('合并后的日志IDs:', contextLogs.map(l => l.id));
+            
+            renderContextLogs();
+            updateContextUI();
+        })
+        .catch(error => {
+            console.error('加载失败:', error);
+            alert('加载失败，请重试');
+        });
+    }
+    
+    // 加载更新的记录（向前）
+    function loadContextNext() {
+        const limit = parseInt(document.getElementById('contextScrollLimit').value) || 30;
+        
+        const queryModel = {
+            bizType: document.getElementById('bizType').value || null,
+            subType: document.getElementById('subType').value || null,
+            operator: document.getElementById('operator').value || null,
+            tenant: document.getElementById('tenant').value || null,
+            operateObject: document.getElementById('operateObject').value || null,
+            operateDesc: document.getElementById('operateDesc').value || null,
+            traceId: document.getElementById('traceId').value || null,
+            startTime: document.getElementById('startTime').value ? new Date(document.getElementById('startTime').value).getTime() : null,
+            endTime: document.getElementById('endTime').value ? new Date(document.getElementById('endTime').value).getTime() : null
+        };
+        
+        const successValue = document.getElementById('success').value;
+        if (successValue !== '') {
+            queryModel.success = successValue === 'true';
+        }
+        
+        fetch('/api/audit/logs/scroll-query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cursorId: contextForwardCursor,
+                cursorTime: contextForwardCursorTime,
+                direction: 'forward',
+                limit: limit,
+                query: queryModel
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            const data = result.data || result;
+            const newLogs = data.list || [];
+            
+            if (newLogs.length === 0) {
+                // 没有更多数据，给出友好提示
+                alert('已经是最新一条记录了，没有更新的数据');
+                contextHasForward = false;
+                updateContextUI();
+                return;
+            }
+            
+            // 将新记录添加到后面（因为是更新的记录）
+            contextLogs = contextLogs.concat(newLogs);
+            
+            // 更新游标为最后一条记录的 ID 和时间
+            const lastLog = newLogs[newLogs.length - 1];
+            contextForwardCursor = lastLog.id;
+            contextForwardCursorTime = lastLog.operateTime;
+            
+            contextHasForward = newLogs.length >= limit;
+            
+            renderContextLogs();
+            updateContextUI();
+        })
+        .catch(error => {
+            console.error('加载失败:', error);
+            alert('加载失败，请重试');
+        });
+    }
+    
+    // 渲染上下文日志列表
+    function renderContextLogs() {
+        const tbody = document.getElementById('contextLogList');
+        const noData = document.getElementById('contextNoData');
+        
+        if (!contextLogs || contextLogs.length === 0) {
+            tbody.innerHTML = '';
+            noData.style.display = 'block';
+            return;
+        }
+        
+        noData.style.display = 'none';
+        
+        tbody.innerHTML = contextLogs.map(log => {
+            const isActive = log.id === contextCurrentLogId ? 'style="background-color: #fef3c7;"' : '';
+            const successClass = log.success ? 'status-success' : 'status-fail';
+            const successText = log.success ? '成功' : '失败';
+            
+            return `<tr ${isActive}>
+                <td>${log.id || '-'}</td>
+                <td>${formatDate(log.operateTime) || '-'}</td>
+                <td>${log.operator || '-'}</td>
+                <td>${log.bizType || '-'}/${log.subType || '-'}</td>
+                <td title="${log.operateDesc || ''}">${log.operateDesc || '-'}</td>
+                <td title="${log.operateObject || ''}">${log.operateObject || '-'}</td>
+                <td><span class="status-badge ${successClass}">${successText}</span></td>
+                <td>${log.tenant || '-'}</td>
+                <td>
+                    <button class="btn btn-info" onclick="showDetailFromContext('${log.id}', '${log.tenant}')" style="padding: 4px 10px; font-size: 0.85rem;">
+                        <i class="fas fa-eye"></i> 详情
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+    
+    // 从上下文弹窗中查看日志详情
+    function showDetailFromContext(logId, tenant) {
+        // 复用现有的 showDetail 函数
+        showDetail(logId, tenant);
+    }
+    
+    // 更新上下文 UI
+    function updateContextUI() {
+        const countEl = document.getElementById('contextLogCount');
+        countEl.textContent = `共 ${contextLogs.length} 条记录`;
+    }
 
     // 渲染分页控件
     function renderPagination(pageInfo, queryModel) {
@@ -1134,20 +1579,32 @@
 
         }
 
-    // 格式化日期
+    // 格式化日期（处理时间戳）
     function formatDate(timestamp) {
-        return timestamp;
-        /* if (!timestamp) return '';
-
-         const date = new Date(timestamp);
-         return date.toLocaleString('zh-CN', {
-             year: 'numeric',
-             month: '2-digit',
-             day: '2-digit',
-             hour: '2-digit',
-             minute: '2-digit',
-             second: '2-digit'
-         });*/
+        if (!timestamp) return '';
+        
+        // 如果已经是 Date 对象，直接转换
+        let date;
+        if (timestamp instanceof Date) {
+            date = timestamp;
+        } else {
+            // 如果是数字（时间戳），转换为 Date 对象
+            date = new Date(timestamp);
+        }
+        
+        // 检查日期是否有效
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+        
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     }
 
     // 显示/隐藏加载状态

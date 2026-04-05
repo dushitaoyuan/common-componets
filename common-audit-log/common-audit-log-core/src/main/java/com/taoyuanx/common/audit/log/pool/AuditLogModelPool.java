@@ -1,8 +1,10 @@
 package com.taoyuanx.common.audit.log.pool;
 
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
+import com.taoyuanx.common.audit.log.util.AuditLogUtil;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,15 +30,23 @@ public class AuditLogModelPool {
     private volatile long lastBorrowTime = System.currentTimeMillis();
     private static final long IDLE_TIMEOUT = 300000; // 5分钟空闲超时
     private static final int IDLE_CHECK_THRESHOLD = 3; // 连续3次检查都空闲才清理
+    
+    // 清理任务间隔（毫秒），默认10秒
+    private final long cleanupIntervalMs;
 
     public AuditLogModelPool() {
-        this(1024, 100);
+        this(1024, 100, 10000L); // 默认10秒清理一次
     }
 
     public AuditLogModelPool(int maxSize, int initialSize) {
+        this(maxSize, initialSize, 10000L); // 默认10秒清理一次
+    }
+    
+    public AuditLogModelPool(int maxSize, int initialSize, long cleanupIntervalMs) {
         this.maxSize = maxSize;
         this.initialSize = Math.min(initialSize, maxSize);
         this.pool = new ConcurrentLinkedQueue<>();
+        this.cleanupIntervalMs = cleanupIntervalMs;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "AuditLogModelPool-Cleanup"));
 
         // 初始化对象池
@@ -83,7 +93,7 @@ public class AuditLogModelPool {
 
     /**
      * 将AuditLogModel对象归还到池中
-     * 如果池已满，则丢弃对象
+     * 注意：maxSize作为软限制，允许临时超出，由清理任务负责回收
      *
      * @param model AuditLogModel对象
      */
@@ -92,47 +102,49 @@ public class AuditLogModelPool {
             return;
         }
 
-        clearModel(model);
+        AuditLogUtil.resetAuditLog(model);
 
-        // 检查池大小
-        int currentSize = getPoolSize();
-        if (currentSize < maxSize) {
+        pool.offer(model);
+        log.debug("Returned AuditLogModel to pool, current size: {}", getPoolSize());
+    }
+    
+    /**
+     * 批量归还AuditLogModel对象到池中
+     * <p>相比逐个调用 returnObject()，批量归还可以减少日志输出次数</p>
+     * <p>注意：maxSize作为软限制，允许临时超出，由清理任务负责回收</p>
+     *
+     * @param models AuditLogModel对象列表
+     */
+    public void returnObjects(List<AuditLogModel> models) {
+        if (models == null || models.isEmpty() || closed) {
+            return;
+        }
+        
+        int returnedCount = 0;
+        
+        for (AuditLogModel model : models) {
+            if (model == null) {
+                continue;
+            }
+            
+            AuditLogUtil.resetAuditLog(model);
             pool.offer(model);
-            log.debug("Returned AuditLogModel to pool, current size: {}", getPoolSize());
-        } else {
-            log.debug("Pool full, discarding AuditLogModel, current size: {}", currentSize);
+            returnedCount++;
+        }
+        
+        if (returnedCount > 0) {
+            log.debug("Batch returned {} objects to pool, current size: {}", 
+                     returnedCount, getPoolSize());
         }
     }
 
-    /**
-     * 清空AuditLogModel对象的状态
-     *
-     * @param model AuditLogModel对象
-     */
-    private void clearModel(AuditLogModel model) {
-        model.setId(null);
-        model.setTraceId(null);
-        model.setOperator(null);
-        model.setOperateObject(null);
-        model.setBizType(null);
-        model.setSubType(null);
-        model.setOperateDesc(null);
-        model.setOperateTime(null);
-        model.setOperateDsl(null);
-        model.setTenant(null);
-        model.setSuccess(null);
-        model.setCostTime(null);
-        model.setErrorMsg(null);
-        model.setOpDate(null);
-        model.setExt(null);
-    }
 
     /**
      * 启动定时检查任务
-     * 每60秒检查一次，基于合理条件清理
+     * 根据配置的清理间隔执行，基于合理条件清理
      */
     private void startCleanupTask() {
-        scheduler.scheduleWithFixedDelay(this::adaptiveCleanup, 60, 60, TimeUnit.SECONDS);
+        scheduler.scheduleWithFixedDelay(this::adaptiveCleanup, cleanupIntervalMs, cleanupIntervalMs, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -145,12 +157,18 @@ public class AuditLogModelPool {
 
         int currentSize = getPoolSize();
 
-        // 条件1：长时间空闲且池大小超过初始大小
+        // 条件1：超过maxSize，立即清理到maxSize（防止内存无限增长）
+        if (currentSize > maxSize) {
+            cleanupToSize(maxSize);
+            log.info("Exceeded maxSize({}), cleaned from {} to {}", maxSize, currentSize, maxSize);
+            return;
+        }
+
+        // 条件2：长时间空闲且池大小超过初始大小，清理到初始大小
         long idleTime = System.currentTimeMillis() - lastBorrowTime;
         if (idleTime > IDLE_TIMEOUT && currentSize > initialSize) {
             int consecutive = consecutiveIdleChecks.incrementAndGet();
             if (consecutive >= IDLE_CHECK_THRESHOLD) {
-                // 清理到初始大小
                 cleanupToSize(initialSize);
                 consecutiveIdleChecks.set(0);
                 log.info("Idle cleanup: reduced from {} to {} (idle for {}ms)",
@@ -161,13 +179,13 @@ public class AuditLogModelPool {
             consecutiveIdleChecks.set(0);
         }
 
-        // 条件2：池大小接近最大值且最近有活动，不清理
+        // 条件3：池大小接近最大值且最近有活动，不清理
         if (currentSize > maxSize * 0.8 && idleTime < IDLE_TIMEOUT) {
             log.debug("Pool actively used (size: {}/{}), skipping cleanup", currentSize, maxSize);
             return;
         }
 
-        // 条件3：池大小超过初始大小的2倍，但使用率不高
+        // 条件4：池大小超过初始大小的2倍，但使用率不高，适度清理
         if (currentSize > initialSize * 2 && idleTime > IDLE_TIMEOUT / 2) {
             int targetSize = Math.min(currentSize / 2, initialSize * 3);
             cleanupToSize(targetSize);

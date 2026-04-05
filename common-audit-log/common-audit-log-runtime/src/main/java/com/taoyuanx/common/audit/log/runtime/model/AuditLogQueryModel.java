@@ -3,8 +3,6 @@ package com.taoyuanx.common.audit.log.runtime.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
-
 /**
  * 日志查询参数
  *
@@ -26,13 +24,13 @@ public class AuditLogQueryModel {
      */
     private String subType;
     /**
-     * 操作的开始时间
+     * 操作的开始时间（时间戳）
      */
-    private Date startTime;
+    private Long startTime;
     /**
-     * 操作的截止时间
+     * 操作的截止时间（时间戳）
      */
-    private Date endTime;
+    private Long endTime;
     /**
      * 操作人
      */
