@@ -162,9 +162,9 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         Long cursorId = request.getCursorId();
         if (cursorId != null && cursorId > 0) {
             // 优先使用前端传递的游标时间，如果没有则查询数据库
-            Timestamp cursorTime;
+            Long cursorTime;
             if (request.getCursorTime() != null) {
-                cursorTime = new Timestamp(request.getCursorTime());
+                cursorTime = request.getCursorTime();
             } else {
                 cursorTime = getCursorTime(cursorId, tableName);
             }
@@ -210,14 +210,14 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
     /**
      * 获取游标对应的时间戳
      */
-    private Timestamp getCursorTime(Long logId, String tableName) {
+    private Long getCursorTime(Long logId, String tableName) {
         try {
-            Timestamp timestamp = jdbcTemplate.queryForObject(
+            Long time = jdbcTemplate.queryForObject(
                     "SELECT op_time FROM " + tableName + " WHERE id = ?",
-                    Timestamp.class, logId);
-            return timestamp != null ? timestamp : new Timestamp(System.currentTimeMillis());
+                    Long.class, logId);
+            return time != null ? time : System.currentTimeMillis();
         } catch (Exception e) {
-            return new Timestamp(System.currentTimeMillis());
+            return System.currentTimeMillis();
         }
     }
 
@@ -238,8 +238,11 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
      * 使用生成的 ID（雪花算法）保存
      */
     private void saveWithGeneratedId(AuditLogModel auditLogModel, String insertSqlWithId) {
-        List<Object> params = buildParams(auditLogModel, true);
-        jdbcTemplate.update(insertSqlWithId, params.toArray());
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(insertSqlWithId);
+            setParams(ps, auditLogModel, true);
+            return ps;
+        });
     }
 
     /**
@@ -273,7 +276,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         params.add(auditLogModel.getBizType());
         params.add(auditLogModel.getSubType());
         params.add(auditLogModel.getOperateDesc());
-        params.add(new Timestamp(auditLogModel.getOperateTime().getTime()));
+        params.add(auditLogModel.getOperateTime());
         params.add(auditLogModel.getOperateObject());
         params.add(auditLogModel.getSuccess());
         params.add(auditLogModel.getTraceId());
@@ -283,7 +286,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         params.add(auditLogModel.getOpDate());
         params.add(getObjectString(auditLogModel.getExt()));
         if (!enableLogDetailTable) {
-            params.add(auditLogModel.getOperateDsl());
+            params.add(getObjectString(auditLogModel.getOperateDsl()));
         }
         return params;
     }
@@ -305,7 +308,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         ps.setString(paramIndex++, auditLogModel.getBizType());
         ps.setString(paramIndex++, auditLogModel.getSubType());
         ps.setString(paramIndex++, auditLogModel.getOperateDesc());
-        ps.setTimestamp(paramIndex++, new Timestamp(auditLogModel.getOperateTime().getTime()));
+        ps.setLong(paramIndex++, auditLogModel.getOperateTime());
         ps.setString(paramIndex++, auditLogModel.getOperateObject());
         ps.setBoolean(paramIndex++, auditLogModel.getSuccess());
         ps.setString(paramIndex++, auditLogModel.getTraceId());
@@ -313,9 +316,20 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         ps.setLong(paramIndex++, auditLogModel.getCostTime() != null ? auditLogModel.getCostTime() : 0);
         ps.setString(paramIndex++, truncateError(auditLogModel.getErrorMsg()));
         ps.setString(paramIndex++, auditLogModel.getOpDate());
-        ps.setString(paramIndex++, getObjectString(auditLogModel.getExt()));
+        // 对于 CLOB 字段，使用 setString 并确保正确处理 null
+        String extStr = getObjectString(auditLogModel.getExt());
+        if (extStr == null) {
+            ps.setNull(paramIndex++, java.sql.Types.CLOB);
+        } else {
+            ps.setString(paramIndex++, extStr);
+        }
         if (!enableLogDetailTable) {
-            ps.setString(paramIndex, getObjectString(auditLogModel.getOperateDsl()));
+            String dslStr = getObjectString(auditLogModel.getOperateDsl());
+            if (dslStr == null) {
+                ps.setNull(paramIndex, java.sql.Types.CLOB);
+            } else {
+                ps.setString(paramIndex, dslStr);
+            }
         }
     }
 
@@ -324,7 +338,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             return;
         }
         String operateDsl = getObjectString(auditLogModel.getOperateDsl());
-        if (operateDsl != null && operateDsl.length() > 0) {
+        if (operateDsl != null && !operateDsl.isEmpty()) {
             auditLogModel.setId(auditLogModel.getId());
             String insertDetailSql = SqlTemplateManager.getInsertDetailSql(calcTableName(auditLogModel.getTenant(), logDetailTableName));
             jdbcTemplate.update(insertDetailSql, auditLogModel.getId(), operateDsl);
@@ -367,11 +381,11 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         }
         if (queryModel.getStartTime() != null) {
             sql.append(" AND op_time >= ?");
-            params.add(new Timestamp(queryModel.getStartTime()));
+            params.add(queryModel.getStartTime());
         }
         if (queryModel.getEndTime() != null) {
             sql.append(" AND op_time <= ?");
-            params.add(new Timestamp(queryModel.getEndTime()));
+            params.add(queryModel.getEndTime());
         }
         if (StringUtils.isNotEmpty(queryModel.getOperateDesc())) {
             sql.append(" AND op_desc like ?");
@@ -418,7 +432,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         Map<String, String> columnNameMap = columnNameMap(rs);
         AuditLogViewModel model = new AuditLogViewModel();
         // 非string列
-        model.setOperateTime(rs.getTimestamp(getColumnName(columnNameMap, "op_time")).getTime());
+        model.setOperateTime(rs.getLong(getColumnName(columnNameMap, "op_time")));
         model.setSuccess(rs.getBoolean(getColumnName(columnNameMap, "success")));
         model.setCostTime(rs.getLong(getColumnName(columnNameMap, "cost_time")));
 
@@ -556,7 +570,12 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
 
         jdbcTemplate.batchUpdate(insertDetailSql, logsWithDetail, logsWithDetail.size(), (ps, log) -> {
             ps.setLong(1, log.getId());
-            ps.setString(2, getObjectString(log.getOperateDsl()));
+            String dslStr = getObjectString(log.getOperateDsl());
+            if (dslStr == null) {
+                ps.setNull(2, java.sql.Types.CLOB);
+            } else {
+                ps.setString(2, dslStr);
+            }
         });
     }
 }

@@ -6,7 +6,7 @@ CREATE TABLE "op_log"
     "biz_type"     TEXT      NOT NULL,
     "op_desc"      TEXT               DEFAULT NULL,
     "sub_biz_type" TEXT               DEFAULT NULL,
-    "op_time"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "op_time"      INTEGER NOT NULL,
     "op_object"    TEXT               DEFAULT NULL,
     "success"      INTEGER            DEFAULT NULL,
     "trace_id"     TEXT               DEFAULT NULL,

@@ -5,7 +5,7 @@ CREATE TABLE `op_log`
     `biz_type`     varchar(64) NOT NULL COMMENT '业务类型',
     `sub_biz_type` varchar(32)          DEFAULT NULL COMMENT '操作子类型',
     `op_desc`      varchar(255)         DEFAULT NULL COMMENT '操作描述',
-    `op_time`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '操作时间',
+    `op_time`      bigint(20)  NOT NULL COMMENT '操作时间(毫秒时间戳)',
     `op_object`    varchar(128)         DEFAULT NULL COMMENT '操作对象',
     `success`      tinyint(2)           DEFAULT NULL COMMENT '操作是否成功',
     `trace_id`     varchar(128)         DEFAULT NULL COMMENT '链路追踪id',

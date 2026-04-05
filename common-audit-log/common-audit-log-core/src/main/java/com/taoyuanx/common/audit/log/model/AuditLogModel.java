@@ -43,9 +43,9 @@ public class AuditLogModel implements Serializable {
     private String operateDesc;
 
     /**
-     * 操作时间
+     * 操作时间(毫秒时间戳)
      */
-    private Date operateTime;
+    private Long operateTime;
 
     /**
      * 操作详情

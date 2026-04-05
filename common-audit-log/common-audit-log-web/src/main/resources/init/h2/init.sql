@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS op_log (
     biz_type     VARCHAR(64) NOT NULL,
     sub_biz_type VARCHAR(32) DEFAULT NULL,
     op_desc      VARCHAR(255) DEFAULT NULL,
-    op_time      TIMESTAMP NOT NULL,
+    op_time      BIGINT NOT NULL,
     op_object    VARCHAR(128) DEFAULT NULL,
     success      BOOLEAN DEFAULT NULL,
     trace_id     VARCHAR(128) DEFAULT NULL,

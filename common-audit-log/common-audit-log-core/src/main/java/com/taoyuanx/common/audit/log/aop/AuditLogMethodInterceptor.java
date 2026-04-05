@@ -5,11 +5,13 @@ import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.common.LogDiff;
 import com.taoyuanx.common.audit.log.common.OperateLog;
 import com.taoyuanx.common.audit.log.context.AuditLogContextUtil;
+import com.taoyuanx.common.audit.log.context.LogContext;
 import com.taoyuanx.common.audit.log.diff.ObjectDiffHandler;
 import com.taoyuanx.common.audit.log.diff.handler.NoDiffHandler;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.service.AuditLogFillHandler;
+import com.taoyuanx.common.audit.log.util.AuditLogUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
@@ -21,7 +23,6 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,34 +58,21 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         Object result = null;
         Throwable ex = null;
         long startTime = System.currentTimeMillis();
-        Map<String, Object> logContextMap = initAuditLogBefore(invocation);
+        LogContext logContext = AuditLogUtil.initAuditLogContext(invocation, logFillHandlers);
         try {
             result = invocation.proceed();
         } catch (Throwable e) {
             ex = e;
             throw e;
         } finally {
-            collectAuditLogModel(invocation, result, ex, logContextMap, startTime);
+            collectAuditLogModel(result, ex, logContext, startTime);
             AuditLogContextUtil.remove();
         }
         return result;
     }
 
-    private Map<String, Object> initAuditLogBefore(MethodInvocation methodInvocation) {
-        // 初始化日志上下文
-        Map<String, Object> logContextMap = AuditLogContextUtil.init();
-        if (logFillHandlers == null||logFillHandlers.isEmpty()) {
-            return logContextMap;
-        }
-        try {
-            logFillHandlers.forEach(logFillHandler->logFillHandler.fillAuditLog(methodInvocation));
-        } catch (Throwable e) {
-            log.warn("beforeAuditLog error,methodInvocation:{}", methodInvocation, e);
-        }
-        return logContextMap;
-    }
-
-    private void collectAuditLogModel(MethodInvocation methodInvocation, Object result, Throwable e, Map<String, Object> logContextMap, long startTime) {
+    private void collectAuditLogModel(Object result, Throwable e, LogContext logContext, long startTime) {
+        MethodInvocation methodInvocation = logContext.getMethodInvocation();
         try {
             Method method = methodInvocation.getMethod();
             OperateLog operateLog = findMergedOperateLog(method);
@@ -104,7 +92,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             operationLog.setSubType(StringUtils.hasLength(operateLog.subBizType()) ? operateLog.subBizType() : null);
             operationLog.setOperateObject(SpElUtil.autoEval(methodInvocation, operateLog.operateObject(), result));
             operationLog.setOperateDesc(SpElUtil.autoEval(methodInvocation, logExp, result));
-            fillAuditLog(operationLog, methodInvocation, result, e, logContextMap, costTime);
+            fillAuditLog(operationLog, methodInvocation, result, e, logContext, costTime);
             auditLogCollector.collect(operationLog);
         } catch (Exception ex) {
             log.error("collectAuditLogModel error,methodInvocation:{},result:{}", methodInvocation, result, ex);
@@ -133,37 +121,37 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         return false;
     }
 
-    private void fillAuditLog(AuditLogModel operationLog, MethodInvocation methodInvocation, Object result, Throwable e, Map<String, Object> logContextMap, Long costTime) {
+    private void fillAuditLog(AuditLogModel operationLog, MethodInvocation methodInvocation, Object result, Throwable e, LogContext logContext, Long costTime) {
         operationLog.setCostTime(costTime);
-        operationLog.setOperateTime(new Date());
-        operationLog.setOperator(AuditLogContextUtil.get(CONTEXT_KEY_OPERATOR, logContextMap));
+        long now = System.currentTimeMillis();
+        operationLog.setOperateTime(now);
+        operationLog.setOperator(logContext.get(CONTEXT_KEY_OPERATOR));
         if (e != null) {
             operationLog.setSuccess(false);
             operationLog.setErrorMsg(e.getMessage());
         } else {
             operationLog.setSuccess(true);
         }
-        operationLog.setTenant(AuditLogContextUtil.get(CONTEXT_KEY_TENANT, logContextMap));
-        Date operateTime = operationLog.getOperateTime();
-        if (operateTime != null) {
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
-            operationLog.setOpDate(sdf.format(operateTime));
-        }
-        operationLog.setExt(AuditLogContextUtil.get(CONTEXT_KEY_EXT, logContextMap));
-        String traceId = AuditLogContextUtil.get(CONTEXT_KEY_TRACE_ID, logContextMap);
+        operationLog.setTenant(logContext.get(CONTEXT_KEY_TENANT));
+        // 从时间戳计算 opDate
+        operationLog.setOpDate(formatTimestampToDateStr(now));
+        operationLog.setExt(logContext.get(CONTEXT_KEY_EXT));
+        String traceId = logContext.get(CONTEXT_KEY_TRACE_ID);
         if (StringUtils.hasLength(traceId)) {
             operationLog.setTraceId(traceId);
         }
-        Object operateDsl = AuditLogContextUtil.get(CONTEXT_KEY_OPERATE_DSL, logContextMap);
+        Object operateDsl = logContext.get(CONTEXT_KEY_OPERATE_DSL);
         if (operateDsl != null) {
             operationLog.setOperateDsl(operateDsl);
             return;
         }
+        Object before = null;
+        Object after = null;
         Method method = methodInvocation.getMethod();
         LogDiff logDiff = method.getAnnotation(LogDiff.class);
         if (logDiff != null) {
-            Object before = getLogFieldValue(logDiff.before(), CONTEXT_KEY_BEFORE_OBJECT, logContextMap, methodInvocation, result, Object.class);
-            Object after = getLogFieldValue(logDiff.after(), CONTEXT_KEY_AFTER_OBJECT, logContextMap, methodInvocation, result, Object.class);
+            before = getLogFieldValue(logDiff.before(), CONTEXT_KEY_BEFORE_OBJECT, logContext.getLogContextMap(), methodInvocation, result, Object.class);
+            after = getLogFieldValue(logDiff.after(), CONTEXT_KEY_AFTER_OBJECT, logContext.getLogContextMap(), methodInvocation, result, Object.class);
             try {
                 if (Objects.equals(logDiff.diffHandler(), NoDiffHandler.class)) {
                     operationLog.setOperateDsl(NoDiffHandler.NO_DIFF_HANDLER.diff(before, after));
@@ -171,15 +159,20 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
                 }
                 ObjectDiffHandler objectDiffHandler = getDiffHandlerFromSpring(logDiff.diffHandler());
                 operationLog.setOperateDsl(objectDiffHandler.diff(before, after));
+                return;
             } catch (Exception ex) {
                 log.error("fillAuditLog logDiff error", e);
-                operationLog.setOperateDsl(NoDiffHandler.NO_DIFF_HANDLER.diff(before, after));
             }
-            return;
         }
-        Object before = AuditLogContextUtil.get(CONTEXT_KEY_BEFORE_OBJECT, logContextMap);
-        Object after = AuditLogContextUtil.get(CONTEXT_KEY_AFTER_OBJECT, logContextMap);
-        operationLog.setOperateDsl(NoDiffHandler.NO_DIFF_HANDLER.diff(before, after));
+
+        if (before != null || after != null) {
+            operationLog.setOperateDsl(NoDiffHandler.NO_DIFF_HANDLER.diff(before, after));
+        }
+        before = logContext.get(CONTEXT_KEY_BEFORE_OBJECT);
+        after = logContext.get(CONTEXT_KEY_AFTER_OBJECT);
+        if (before != null || after != null) {
+            operationLog.setOperateDsl(NoDiffHandler.NO_DIFF_HANDLER.diff(before, after));
+        }
     }
 
 
@@ -215,5 +208,16 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
     public void destroy() throws Exception {
         auditLogCollector.close();
 
+    }
+
+    /**
+     * 将时间戳转换为日期字符串 yyyy-MM-dd
+     */
+    private static String formatTimestampToDateStr(Long timestamp) {
+        if (timestamp == null) {
+            return null;
+        }
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+        return sdf.format(new java.util.Date(timestamp));
     }
 }

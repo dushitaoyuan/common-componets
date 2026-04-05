@@ -1285,8 +1285,9 @@
                     contextForwardCursor = lastForward.id;
                     contextForwardCursorTime = lastForward.operateTime;
                 } else {
-                    contextForwardCursor = null;
-                    contextForwardCursorTime = null;
+                    // 如果没有更新的记录，使用当前日志作为游标
+                    contextForwardCursor = data.current.id;
+                    contextForwardCursorTime = data.current.operateTime;
                 }
                 
                 if (data.backward.length > 0) {
@@ -1294,8 +1295,9 @@
                     contextBackwardCursor = firstBackward.id;
                     contextBackwardCursorTime = firstBackward.operateTime;
                 } else {
-                    contextBackwardCursor = null;
-                    contextBackwardCursorTime = null;
+                    // 如果没有更早的记录，使用当前日志作为游标
+                    contextBackwardCursor = data.current.id;
+                    contextBackwardCursorTime = data.current.operateTime;
                 }
                 
                 // 判断是否还有更多数据
@@ -1378,10 +1380,17 @@
             // newLogs 是按时间升序排列的，如 [5,6,7]，直接拼接到前面即可
             contextLogs = newLogs.concat(contextLogs);
             
-            // 更新游标为第一条记录的 ID 和时间
+            // 更新向后游标为第一条记录的 ID 和时间
             const firstLog = newLogs[0];
             contextBackwardCursor = firstLog.id;
             contextBackwardCursorTime = firstLog.operateTime;
+            
+            // 同步更新向前游标为列表最后一条记录
+            if (contextLogs.length > 0) {
+                const lastLog = contextLogs[contextLogs.length - 1];
+                contextForwardCursor = lastLog.id;
+                contextForwardCursorTime = lastLog.operateTime;
+            }
             
             contextHasBackward = newLogs.length >= limit;
             
@@ -1444,10 +1453,17 @@
             // 将新记录添加到后面（因为是更新的记录）
             contextLogs = contextLogs.concat(newLogs);
             
-            // 更新游标为最后一条记录的 ID 和时间
+            // 更新向前游标为最后一条记录的 ID 和时间
             const lastLog = newLogs[newLogs.length - 1];
             contextForwardCursor = lastLog.id;
             contextForwardCursorTime = lastLog.operateTime;
+            
+            // 同步更新向后游标为列表第一条记录
+            if (contextLogs.length > 0) {
+                const firstLog = contextLogs[0];
+                contextBackwardCursor = firstLog.id;
+                contextBackwardCursorTime = firstLog.operateTime;
+            }
             
             contextHasForward = newLogs.length >= limit;
             
@@ -1603,8 +1619,9 @@
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         const seconds = String(date.getSeconds()).padStart(2, '0');
+        const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
         
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
     }
 
     // 显示/隐藏加载状态
