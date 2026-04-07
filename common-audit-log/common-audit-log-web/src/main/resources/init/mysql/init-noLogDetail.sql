@@ -21,11 +21,10 @@ CREATE TABLE `op_log`
     INDEX idx_op_time (`tenant`, `biz_type`, `op_time`),
     INDEX idx_trace_id (`tenant`, `biz_type`, `trace_id`),
     INDEX idx_sub_biz_type (`tenant`, `biz_type`, `sub_biz_type`),
-    INDEX idx_op_date (`tenant`, `biz_type`, `op_date`),
-
+    INDEX idx_op_date (`tenant`, `biz_type`, `op_date`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_bin COMMENT ='操作日志表';
+  COLLATE = utf8mb4_bin COMMENT='操作日志表';
 
 
 

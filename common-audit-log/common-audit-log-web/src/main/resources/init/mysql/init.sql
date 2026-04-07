@@ -23,7 +23,7 @@ CREATE TABLE `op_log`
     INDEX idx_op_date (`tenant`, `biz_type`, `op_date`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_bin COMMENT ='操作日志表';
+  COLLATE = utf8mb4_bin COMMENT='操作日志表';
 
 
 CREATE TABLE `op_log_detail`
@@ -33,6 +33,6 @@ CREATE TABLE `op_log_detail`
     PRIMARY KEY (`op_log_id`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_bin COMMENT ='操作日志详情表';
+  COLLATE = utf8mb4_bin COMMENT='操作日志详情表';
 
 
