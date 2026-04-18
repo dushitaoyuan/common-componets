@@ -66,14 +66,7 @@ public class AuditLogUtil {
         // 初始化日志上下文
         Map<String, Object> logContextMap = AuditLogContextUtil.init();
         LogContext logContext = new LogContext(methodInvocation, logContextMap);
-        if (logFillHandlers == null || logFillHandlers.isEmpty()) {
-            return logContext;
-        }
-        try {
-            logFillHandlers.forEach(logFillHandler -> logFillHandler.fillAuditLog(logContext));
-        } catch (Throwable e) {
-            log.warn("initAuditLogContext error,logContext:{}", logContext, e);
-        }
+        fillLogContext(logFillHandlers,logContext);
         return logContext;
     }
 
@@ -89,27 +82,30 @@ public class AuditLogUtil {
      * @param auditLogModel   审计日志对象
      */
     public static void mergeLogContext(List<AuditLogFillHandler> logFillHandlers, AuditLogModel auditLogModel) {
-        if (logFillHandlers == null || logFillHandlers.isEmpty()) {
-            return;
-        }
+
 
         try {
-            LogContext logFillContext = new LogContext();
-            // 2. 调用所有处理器填充上下文
-            logFillHandlers.forEach(logFillHandler -> {
-                try {
-                    logFillHandler.fillAuditLog(logFillContext);
-                } catch (Exception e) {
-                    log.warn("fillAuditLog error, handler: {}", logFillHandler.getClass().getName(), e);
-                }
-            });
-
-            // 3. 从上下文中提取属性并覆盖到AuditLogModel
-            applyContextToLogModel(logFillContext, auditLogModel);
+            LogContext logContext = new LogContext();
+            fillLogContext(logFillHandlers,logContext);
+            // 从上下文中提取属性并覆盖到AuditLogModel
+            applyContextToLogModel(logContext, auditLogModel);
 
         } catch (Throwable e) {
             log.warn("mergeLogContext error, logFillHandlers size: {}", logFillHandlers.size(), e);
         }
+    }
+
+    private static void fillLogContext(List<AuditLogFillHandler> logFillHandlers, LogContext logContext){
+        if (logFillHandlers == null || logFillHandlers.isEmpty()) {
+            return;
+        }
+        logFillHandlers.forEach(logFillHandler -> {
+            try {
+                logFillHandler.fillAuditLog(logContext);
+            } catch (Exception e) {
+                log.warn("fillAuditLog error, handler: {}", logFillHandler.getClass().getName(), e);
+            }
+        });
     }
 
     /**
@@ -162,11 +158,11 @@ public class AuditLogUtil {
     /**
      * 将时间戳转换为日期字符串 yyyy-MM-dd
      */
-    private static String formatTimestampToDateStr(Long timestamp) {
+    public static String formatTimestampToDateStr(Long timestamp) {
         if (timestamp == null) {
             return null;
         }
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyyMMdd");
         return sdf.format(new java.util.Date(timestamp));
     }
 

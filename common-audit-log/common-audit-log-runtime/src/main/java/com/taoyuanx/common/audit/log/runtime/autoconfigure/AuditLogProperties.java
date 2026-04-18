@@ -108,6 +108,12 @@ public class AuditLogProperties {
      * 应用标识
      */
     private String appId;
+    
+    /**
+     * 数据持久化目录（用于ID生成器、降级文件等）
+     * 默认为: ./data
+     */
+    private String dataDir = "./data";
     /**
      * 是否启用日志详情表,默认不启用
      */
@@ -135,6 +141,7 @@ public class AuditLogProperties {
      */
     @PostConstruct
     public void initByLogScene() {
+
         if (Objects.isNull(logScene)) {
             logScene = "normal";
         }
@@ -208,6 +215,12 @@ public class AuditLogProperties {
         if (appId == null) {
             throw new IllegalArgumentException("缺少配置:日志应用id");
         }
+        if (System.getProperty("audit.log.dataDir") == null) {
+            System.setProperty("audit.log.dataDir",dataDir);
+        }
+
+        System.setProperty("audit.log.logScene",logScene);
+
 
     }
 

@@ -1,0 +1,134 @@
+# 审计日志降级配置示例
+# 
+# 使用说明：
+# 1. 将此配置复制到 application.yml 的 audit.log.fallback 节点下
+# 2. 大部分配置会根据 logScene (low/normal/high) 自动设置，无需手动配置
+# 3. 如需自定义，只需覆盖需要修改的配置项即可
+# 4. 确保降级目录存在且有读写权限
+
+audit:
+  log:
+    # ==================== 基础配置 ====================
+    enabled: true
+    basePackages: com.yourcompany
+    logScene: high  # 关键：影响 fallback 默认配置
+    
+    # ==================== 降级配置（精简版）====================
+    fallback:
+      # 是否启用降级功能（默认 true）
+      enabled: true
+      
+      # 降级文件存储目录（建议使用绝对路径）
+      # 开发环境：./data/audit-fallback
+      # 生产环境：/var/log/audit-fallback 或独立磁盘挂载点
+      directory: ./data/audit-fallback
+      
+      # ==================== 可选：覆盖默认配置 ====================
+      # 以下配置会根据 logScene 自动设置，仅在需要自定义时配置
+      
+      # 文件滚动策略（可选）
+      rotation:
+        # 单个文件最大行数（达到后自动创建新文件）
+        # 默认值根据 logScene 自动设置：
+        #   low: 5000, normal: 10000, high: 50000
+        max-lines: 10000
+        
+        # 单个文件最大大小（字节）
+        # 默认值根据 logScene 自动设置：
+        #   low: 50MB, normal: 100MB, high: 500MB
+        max-size: 104857600  # 100MB
+        
+        # 文件最大存活时间（毫秒）
+        # 默认值根据 logScene 自动设置：
+        #   low: 12小时, normal: 24小时, high: 48小时
+        max-age: 86400000  # 24小时
+      
+      # 补偿配置（可选）
+      compensation:
+        # 初始扫描间隔（毫秒）
+        # 发现待补偿文件时的扫描频率
+        # 默认值根据 logScene 自动设置：
+        #   low: 10秒, normal: 5秒, high: 2秒
+        initial-interval: 5000
+        
+        # 最大扫描间隔（毫秒）
+        # 无待补偿文件时的扫描频率
+        # 默认值根据 logScene 自动设置：
+        #   low: 2分钟, normal: 60秒, high: 30秒
+        max-interval: 60000
+        
+        # 每次补偿的批量大小
+        # 默认值根据 logScene 自动设置：
+        #   low: 50, normal: 100, high: 200
+        batch-size: 100
+        
+        # 读取当前文件的锁超时时间（毫秒）
+        # 补偿线程读取正在写入的文件时需要获取读锁
+        # 默认值根据 logScene 自动设置：
+        #   low: 5秒, normal: 3秒, high: 2秒
+        read-lock-timeout: 3000
+
+# ==================== 典型场景配置参考 ====================
+
+# 场景1：开发环境（频繁测试，快速反馈）
+#audit:
+#  log:
+#    logScene: low  # 低频场景
+#    fallback:
+#      enabled: true
+#      directory: ./data/dev-fallback
+#      # 以下配置会自动设置，无需手动配置：
+#      # rotation.max-lines: 5000
+#      # rotation.max-size: 50MB
+#      # rotation.max-age: 12小时
+#      # compensation.initial-interval: 10秒
+#      # compensation.batch-size: 50
+
+# 场景2：生产环境（高可用，大数据量）
+#audit:
+#  log:
+#    logScene: high  # 高频场景
+#    fallback:
+#      enabled: true
+#      directory: /var/log/audit-fallback  # 建议使用独立磁盘
+#      # 以下配置会自动设置，无需手动配置：
+#      # rotation.max-lines: 50000
+#      # rotation.max-size: 500MB
+#      # rotation.max-age: 48小时
+#      # compensation.initial-interval: 2秒
+#      # compensation.max-interval: 30秒
+#      # compensation.batch-size: 200
+
+# 场景3：自定义配置（覆盖默认值）
+#audit:
+#  log:
+#    logScene: normal  # 普通场景
+#    fallback:
+#      enabled: true
+#      directory: ./data/audit-fallback
+#      rotation:
+#        max-lines: 20000  # 自定义：增加到2万行
+#        max-size: 209715200  # 自定义：200MB
+#      compensation:
+#        initial-interval: 3000  # 自定义：3秒
+#        batch-size: 150  # 自定义：150条
+
+# ==================== 监控命令参考 ====================
+
+# 查看降级目录状态
+# ls -lh ./data/audit-fallback/
+
+# 查看当前正在写入的文件
+# tail -f ./data/audit-fallback/audit_current.log
+
+# 查看已滚动的文件
+# ls -lh ./data/audit-fallback/audit_*.log
+
+# 查看索引状态
+# cat ./data/audit-fallback/.compensation_index
+
+# 统计未补偿文件数量
+# ls ./data/audit-fallback/audit_*.log | wc -l
+
+# 清理已补偿的文件（谨慎操作）
+# rm ./data/audit-fallback/audit_20260417_*.log

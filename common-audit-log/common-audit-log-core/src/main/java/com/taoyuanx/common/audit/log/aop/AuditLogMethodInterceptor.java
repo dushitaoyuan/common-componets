@@ -134,7 +134,7 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         }
         operationLog.setTenant(logContext.get(CONTEXT_KEY_TENANT));
         // 从时间戳计算 opDate
-        operationLog.setOpDate(formatTimestampToDateStr(now));
+        operationLog.setOpDate(AuditLogUtil.formatTimestampToDateStr(now));
         operationLog.setExt(logContext.get(CONTEXT_KEY_EXT));
         String traceId = logContext.get(CONTEXT_KEY_TRACE_ID);
         if (StringUtils.hasLength(traceId)) {
@@ -208,16 +208,5 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
     public void destroy() throws Exception {
         auditLogCollector.close();
 
-    }
-
-    /**
-     * 将时间戳转换为日期字符串 yyyy-MM-dd
-     */
-    private static String formatTimestampToDateStr(Long timestamp) {
-        if (timestamp == null) {
-            return null;
-        }
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
-        return sdf.format(new java.util.Date(timestamp));
     }
 }

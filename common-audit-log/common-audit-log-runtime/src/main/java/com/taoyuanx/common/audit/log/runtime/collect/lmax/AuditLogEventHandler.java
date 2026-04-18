@@ -3,7 +3,7 @@ package com.taoyuanx.common.audit.log.runtime.collect.lmax;
 import com.lmax.disruptor.EventHandler;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
+import com.taoyuanx.common.audit.log.runtime.collect.AbstractAuditLogCollector;
 import com.taoyuanx.common.audit.log.util.AuditLogUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,29 +18,19 @@ import java.util.List;
  */
 @Slf4j
 public class AuditLogEventHandler implements EventHandler<AuditLogEvent> {
-    private final AuditLogStoreService auditLogService;
-    private final AuditLogModelPool auditLogModelPool;
+    private final AbstractAuditLogCollector collector;
     private final boolean batchEnabled;
     
     // 批量相关字段（仅 batchEnabled=true 时有效）
     private final List<AuditLogModel> batchBuffer;
     private final int batchSize;
     
-    public AuditLogEventHandler(AuditLogStoreService auditLogService, AuditLogModelPool auditLogModelPool,
+    public AuditLogEventHandler(AbstractAuditLogCollector collector,
                                 boolean batchEnabled, int batchSize) {
-        this.auditLogService = auditLogService;
-        this.auditLogModelPool = auditLogModelPool;
+        this.collector = collector;
         this.batchEnabled = batchEnabled;
         this.batchSize = batchSize;
         this.batchBuffer = batchEnabled ? new ArrayList<>(batchSize) : null;
-    }
-
-    public AuditLogEventHandler(AuditLogStoreService auditLogService, AuditLogModelPool auditLogModelPool) {
-        this(auditLogService, auditLogModelPool, true, 100);
-    }
-
-    public AuditLogEventHandler(AuditLogStoreService auditLogService) {
-        this(auditLogService, null);
     }
 
     @Override
@@ -48,19 +38,18 @@ public class AuditLogEventHandler implements EventHandler<AuditLogEvent> {
         AuditLogModel original = event.getAuditLog();
         
         try {
-            AuditLogModel copyForSave = AuditLogUtil.cloneAuditLog(original);
+            AuditLogModel copy = AuditLogUtil.cloneAuditLog(original);
             if (batchEnabled) {
-                // 开启批量：累积到缓冲区
-                handleBatchMode(copyForSave, endOfBatch);
+                handleBatchMode(copy, endOfBatch);
             } else {
-                // 未开启批量：直接保存
-                handleSingleMode(copyForSave);
+                handleSingleMode(copy);
             }
         } catch (Exception e) {
-            log.error("Disruptor collect error", e);
+            log.error("EventHandler error", e);
         } finally {
-            if (original != null && auditLogModelPool != null) {
-                auditLogModelPool.returnObject(original);
+            // 归还在最后
+            if (original != null && collector.getAuditLogModelPool() != null) {
+                collector.getAuditLogModelPool().returnObject(original);
             }
             event.setAuditLog(null);
         }
@@ -86,50 +75,24 @@ public class AuditLogEventHandler implements EventHandler<AuditLogEvent> {
     /**
      * 单条模式处理
      */
-    private void handleSingleMode(AuditLogModel auditLog) {
-        if (auditLog == null) {
+    private void handleSingleMode(AuditLogModel copy) {
+        if (copy == null) {
             return;
         }
         
-        try {
-            auditLogService.saveAuditLog(auditLog);
-        } catch (Exception e) {
-            log.error("Single save error", e);
-        } finally {
-            if (auditLogModelPool != null) {
-                auditLogModelPool.returnObject(auditLog);
-            }
-        }
+        // 使用父类的降级方法
+        collector.fallbackIfFailed(copy, () -> {
+                collector.getAuditLogService().saveAuditLog(copy);
+        });
     }
     
     /**
      * 批量保存（统一入口）
      */
     private void doBatchSave(List<AuditLogModel> logs) {
-        try {
-            auditLogService.batchSaveAuditLog(logs);
-        } catch (Exception e) {
-            log.error("Disruptor batch save error, size: {}", logs.size(), e);
-            fallbackSingleSave(logs);
-        } finally {
-            if (auditLogModelPool != null) {
-                auditLogModelPool.returnObjects(logs);
-            }
-        }
-    }
-    
-    /**
-     * 降级策略：批量失败后逐条保存
-     * 注意：对象归还在doBatchSave的finally中统一处理，这里不要归还
-     */
-    private void fallbackSingleSave(List<AuditLogModel> logs) {
-        for (AuditLogModel auditLogModel : logs) {
-            try {
-                auditLogService.saveAuditLog(auditLogModel);
-            } catch (Exception ex) {
-                log.error("Fallback single save error, logId: {}", auditLogModel.getId(), ex);
-            }
-        }
+        collector.fallbackBatchIfFailed(logs, () -> {
+                collector.getAuditLogService().batchSaveAuditLog(logs);
+        });
     }
 
 }

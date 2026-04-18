@@ -10,6 +10,7 @@ import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogAsyncCollector;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogDirectCollector;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogDisruptorCollector;
+import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
 import com.taoyuanx.common.audit.log.runtime.impl.ShardingAuditLogService;
 import com.taoyuanx.common.audit.log.runtime.impl.SingleTableAuditLogService;
 import com.taoyuanx.common.audit.log.runtime.util.SnowflakeIdGenerator;
@@ -58,24 +59,29 @@ public class AuditLogConfiguration {
 
     @Bean
     public AuditLogProperties auditLogProperties() {
-        return new AuditLogProperties();
+        AuditLogProperties properties = new AuditLogProperties();
+        
+
+        
+        return properties;
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogCollector auditLogCollector(@Autowired AuditLogStoreService auditLogStoreService, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) AuditLogModelPool auditLogModelPool) {
+    public AuditLogCollector auditLogCollector(@Autowired AuditLogStoreService auditLogStoreService, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) AuditLogModelPool auditLogModelPool, @Autowired(required = false) LocalFileFallbackWriter fallbackWriter) {
         AuditLogContextUtil.initLocal(auditLogProperties.getAllowNestLog() == null || Objects.equals(auditLogProperties.getAllowNestLog(), true) ? true : false);
         if (Objects.equals(auditLogProperties.getAsync(), Boolean.TRUE)) {
             if (Objects.equals(auditLogProperties.getUseDisruptor(), Boolean.TRUE)) {
                 return new AuditLogDisruptorCollector(auditLogStoreService, auditLogProperties.getRingBufferSize(), auditLogModelPool,
-                        auditLogProperties.getBatchEnabled(), auditLogProperties.getBatchSize());
+                        auditLogProperties.getBatchEnabled(), auditLogProperties.getBatchSize(), fallbackWriter);
             } else {
                 return new AuditLogAsyncCollector(auditLogStoreService, auditLogProperties.getLogQueueSize(),
                         auditLogProperties.getCollectInterval(), auditLogProperties.getQueueFullWaitTime(), auditLogModelPool,
-                        auditLogProperties.getBatchEnabled(), auditLogProperties.getBatchSize(), auditLogProperties.getBatchMaxWaitTime());
+                        auditLogProperties.getBatchEnabled(), auditLogProperties.getBatchSize(), auditLogProperties.getBatchMaxWaitTime(),
+                        fallbackWriter);
             }
         } else {
-            return new AuditLogDirectCollector(auditLogStoreService, auditLogModelPool);
+            return new AuditLogDirectCollector(auditLogStoreService, auditLogModelPool, fallbackWriter);
         }
     }
 
@@ -93,12 +99,12 @@ public class AuditLogConfiguration {
     public AuditLogStoreService auditLogStoreService(JdbcTemplate jdbcTemplate, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) LogIdGenerator logIdGenerator) {
 
         LogIdGenerator tempLogIdGenerator = logIdGenerator;
-        if (Objects.equals(auditLogProperties.getBatchEnabled(), Boolean.TRUE) || (Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1)) {
-            // 分表或批量 id生成器必须要有
+        if ((Objects.equals(auditLogProperties.getBatchEnabled(), Boolean.TRUE) && Objects.equals(auditLogProperties.getEnableLogDetailTable(), Boolean.TRUE)) || (Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1)) {
+            // 开启批量且日志详情表，或分表时，需要有id生成器
             tempLogIdGenerator = logIdGenerator == null ? (LogIdGenerator) () -> SnowflakeIdGenerator.getInstance().nextId() : logIdGenerator;
         }
         // 根据配置选择使用单表还是分表实现
-        if (Boolean.TRUE.equals(auditLogProperties.getEnableSharding()) && auditLogProperties.getShardingTableCount() > 1) {
+        if ( auditLogProperties.getShardingTableCount() > 1) {
             return new ShardingAuditLogService(jdbcTemplate, auditLogProperties, tempLogIdGenerator);
         } else {
             return new SingleTableAuditLogService(jdbcTemplate, auditLogProperties, tempLogIdGenerator);
@@ -123,6 +129,7 @@ public class AuditLogConfiguration {
     public FieldDiffHandler fieldDiffHandler() {
         return new FieldDiffHandler();
     }
+
 
     @Bean
     public AuditLogService auditLogService(@Autowired AuditLogCollector auditLogCollector, @Autowired(required = false) List<AuditLogFillHandler> logFillHandlers) {

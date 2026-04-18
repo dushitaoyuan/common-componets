@@ -109,11 +109,7 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
     @Override
     public void saveAuditLog(AuditLogModel auditLogModel) {
         String tableName = calcTableName(auditLogModel.getTenant(), logTableName);
-        if (auditLogModel.getId() == null && logIdGenerator != null) {
-            // id 生成器存在时，使用id生成器生成id
-            Long id = logIdGenerator.nextId();
-            auditLogModel.setId(id);
-        }
+        autoFillLogId(auditLogModel);
         /**
          * 记录主表和详情表
          */
@@ -238,11 +234,22 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
      * 使用生成的 ID（雪花算法）保存
      */
     private void saveWithGeneratedId(AuditLogModel auditLogModel, String insertSqlWithId) {
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(insertSqlWithId);
-            setParams(ps, auditLogModel, true);
-            return ps;
-        });
+        try {
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement(insertSqlWithId);
+                setParams(ps, auditLogModel, true);
+                return ps;
+            });
+        } catch (Exception e) {
+            // 检查是否是主键冲突异常
+            if (isDuplicateKeyException(e)) {
+                log.warn("Duplicate key detected for id: {}, skip insertion", auditLogModel.getId());
+                // ID 重复时静默忽略，不抛出异常，防止触发降级
+                return;
+            }
+            // 其他异常继续抛出
+            throw e;
+        }
     }
 
     /**
@@ -483,8 +490,6 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         if (auditLogModels == null || auditLogModels.isEmpty()) {
             return;
         }
-        // 确保所有日志都有 ID（批量插入时必须要有 ID）
-        ensureIdsGenerated(auditLogModels);
         if (auditLogModels.size() == 1) {
             saveAuditLog(auditLogModels.get(0));
             return;
@@ -494,6 +499,8 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             auditLogModels.stream().collect(Collectors.groupingBy(AuditLogModel::getTenant)).forEach((tenant, logs) -> {
                 // 逐租户批量插入
                 String tableName = calcTableName(tenant, logTableName);
+
+                autoFillLogId(auditLogModels);
                 // 批量插入主表
                 batchInsertMainTable(tableName, logs);
 
@@ -510,20 +517,19 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
     }
 
     /**
-     * 确保所有日志都有 ID
-     * <p>批量插入时，如果使用数据库自增 ID，无法高效返回生成的 ID，会导致详情表插入失败</p>
-     * <p>因此批量保存时强制使用 ID 生成器（雪花算法）</p>
+     * 自动填充id
      */
-    private void ensureIdsGenerated(List<AuditLogModel> auditLogModels) {
+    private void autoFillLogId(List<AuditLogModel> auditLogModels) {
+        for (AuditLogModel model : auditLogModels) {
+            autoFillLogId(model);
+        }
+    }
+
+    private void autoFillLogId(AuditLogModel model) {
         if (logIdGenerator != null) {
-            for (AuditLogModel model : auditLogModels) {
-                if (model.getId() == null) {
-                    model.setId(logIdGenerator.nextId());
-                }
+            if (model.getId() == null) {
+                model.setId(logIdGenerator.nextId());
             }
-        } else {
-            // 如果没有配置 ID 生成器，记录警告（可能导致详情表插入失败）
-            log.warn("Batch save without ID generator configured. If detail table is enabled, insert may fail.");
         }
     }
 
@@ -535,13 +541,85 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             return;
         }
         String sql = SqlTemplateManager.getInsertSqlWithId(tableName, enableLogDetailTable);
-        jdbcTemplate.batchUpdate(sql, logs, logs.size(), (ps, log) -> {
-            try {
-                setParams(ps, log, true);
-            } catch (SQLException e) {
-                throw new RuntimeException("Set batch params error", e);
+        try {
+            jdbcTemplate.batchUpdate(sql, logs, logs.size(), (ps, log) -> {
+                try {
+                    setParams(ps, log, true);
+                } catch (SQLException e) {
+                    throw new RuntimeException("Set batch params error", e);
+                }
+            });
+        } catch (Exception e) {
+            // 检查是否是主键冲突异常
+            if (isDuplicateKeyException(e)) {
+                log.warn("Batch insert duplicate key detected, size: {}, will retry one by one", logs.size());
+                // 批量插入失败，逐条插入并跳过重复的
+                retryBatchInsertOneByOne(tableName, logs);
+            } else {
+                // 其他异常继续抛出
+                throw e;
             }
-        });
+        }
+    }
+
+    /**
+     * 逐条重试插入（跳过重复的 ID）
+     */
+    private void retryBatchInsertOneByOne(String tableName, List<AuditLogModel> logs) {
+        String sql = SqlTemplateManager.getInsertSqlWithId(tableName, enableLogDetailTable);
+        for (AuditLogModel auditLog : logs) {
+            try {
+                jdbcTemplate.update(sql, ps -> {
+                    try {
+                        setParams(ps, auditLog, true);
+                    } catch (SQLException e) {
+                        throw new RuntimeException("Set params error", e);
+                    }
+                });
+            } catch (Exception e) {
+                if (isDuplicateKeyException(e)) {
+                    log.debug("Skip duplicate log, id: {}", auditLog.getId());
+                    // 跳过重复的，继续处理下一条
+                } else {
+                    // 其他异常记录日志但不中断
+                    log.error("Failed to insert log, id: {}", auditLog.getId(), e);
+                }
+            }
+        }
+    }
+
+    /**
+     * 判断是否是主键冲突异常
+     */
+    private boolean isDuplicateKeyException(Exception e) {
+        Throwable cause = e.getCause();
+        while (cause != null) {
+            String message = cause.getMessage();
+            if (message != null) {
+                // MySQL
+                if (message.contains("Duplicate entry") || message.contains("duplicate key")) {
+                    return true;
+                }
+                // PostgreSQL
+                if (message.contains("violates unique constraint") || message.contains("duplicate key value")) {
+                    return true;
+                }
+                // H2
+                if (message.contains("Unique index or primary key violation")) {
+                    return true;
+                }
+                // SQLite
+                if (message.contains("UNIQUE constraint failed")) {
+                    return true;
+                }
+                // Oracle
+                if (message.contains("ORA-00001")) {
+                    return true;
+                }
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     /**
