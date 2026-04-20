@@ -8,6 +8,7 @@ import com.taoyuanx.common.audit.log.util.AuditLogUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -79,20 +80,24 @@ public class AuditLogEventHandler implements EventHandler<AuditLogEvent> {
         if (copy == null) {
             return;
         }
-        
-        // 使用父类的降级方法
         collector.fallbackIfFailed(copy, () -> {
                 collector.getAuditLogService().saveAuditLog(copy);
         });
+        if (copy != null && collector.getAuditLogModelPool() != null) {
+            collector.getAuditLogModelPool().returnObject(copy);
+        }
     }
     
     /**
-     * 批量保存（统一入口）
+     *
      */
     private void doBatchSave(List<AuditLogModel> logs) {
         collector.fallbackBatchIfFailed(logs, () -> {
                 collector.getAuditLogService().batchSaveAuditLog(logs);
         });
+        if (logs != null && collector.getAuditLogModelPool() != null) {
+            collector.getAuditLogModelPool().returnObjects(logs);
+        }
     }
 
 }

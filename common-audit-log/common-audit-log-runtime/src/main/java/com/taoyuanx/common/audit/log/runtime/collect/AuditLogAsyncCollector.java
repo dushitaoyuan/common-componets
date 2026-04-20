@@ -45,13 +45,12 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
     private final long batchMaxWaitTime;
 
 
-    
     public AuditLogAsyncCollector(AuditLogStoreService auditLogService, Integer logQueueSize, Integer collectInterval,
                                   Integer queueFullWaitTime, AuditLogModelPool auditLogModelPool,
                                   Boolean batchEnabled, Integer batchSize, Long batchMaxWaitTime,
                                   LocalFileFallbackWriter fallbackWriter) {
         super(auditLogService, auditLogModelPool, fallbackWriter);
-        
+
         this.collectInterval = collectInterval == null ? DEFAULT_LOG_COLLECT_INTERVAL : collectInterval;
         this.queueFullWaitTime = queueFullWaitTime == null ? 2000 : queueFullWaitTime;
         this.batchEnabled = batchEnabled != null && batchEnabled;
@@ -71,35 +70,30 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
     }
 
 
-
     @Override
     public void collect(AuditLogModel auditLogModel) throws Exception {
         if (!started) {
             throw new IllegalStateException("AuditLogAsyncCollector 未启动");
         }
-
         boolean offered;
         if (queueFullWaitTime > 0) {
             offered = logQueue.offer(auditLogModel, queueFullWaitTime, TimeUnit.MILLISECONDS);
         } else {
             offered = logQueue.offer(auditLogModel);
         }
-
         if (!offered) {
+            if (fallbackWriter != null) {
+                fallbackWriter.write(auditLogModel);
+                return;
+            }
             log.error("collectAuditLogModel async add logQueue error, logModel:{}", JSON.toJSONString(auditLogModel));
-            fallbackWriter.write(auditLogModel);
-
-        }
-
-        if (auditLogModelPool != null) {
-            auditLogModelPool.returnObject(auditLogModel);
         }
     }
 
     @Override
     public void close() {
         started = false;
-        
+
         // 等待收集线程处理完
         if (logCollectThread != null && logCollectThread.isAlive()) {
             try {
@@ -109,18 +103,18 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
                 log.warn("Interrupted while waiting for collector thread");
             }
         }
-        
+
         // Drain 队列中剩余数据
         drainQueue();
-        
+
         if (auditLogModelPool != null) {
             auditLogModelPool.close();
         }
-        
+
         logCollectThread = null;
         log.info("AsyncCollector closed gracefully");
     }
-    
+
     private void drainQueue() {
         AuditLogModel remaining;
         int count = 0;
@@ -181,7 +175,6 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
                 AuditLogModel copy = AuditLogUtil.cloneAuditLog(auditLog);
                 batchBuffer.add(copy);
             }
-
             // 判断是否触发批量保存
             boolean shouldFlush = batchBuffer.size() >= batchSize
                     || (System.currentTimeMillis() - lastFlushTime > batchMaxWaitTime
@@ -191,6 +184,10 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
                 doBatchSave(new ArrayList<>(batchBuffer));
                 batchBuffer.clear();
                 lastFlushTime = System.currentTimeMillis();
+                return;
+            }
+            if (auditLogModelPool != null) {
+                auditLogModelPool.returnObject(auditLog);
             }
         }
 
@@ -201,25 +198,22 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
             if (auditLog == null) {
                 return;
             }
-            AuditLogModel copy = AuditLogUtil.cloneAuditLog(auditLog);
-            
-            fallbackIfFailed(copy, () -> {
-                    auditLogService.saveAuditLog(copy);
+            fallbackIfFailed(auditLog, () -> {
+                auditLogService.saveAuditLog(auditLog);
             });
-            
             if (auditLogModelPool != null) {
                 auditLogModelPool.returnObject(auditLog);
             }
         }
 
         /**
-         * 批量保存（统一入口）
+         * 批量保存
          */
         private void doBatchSave(List<AuditLogModel> logs) {
             fallbackBatchIfFailed(logs, () -> {
-                    auditLogService.batchSaveAuditLog(logs);
+                auditLogService.batchSaveAuditLog(logs);
             });
-            
+
             if (auditLogModelPool != null) {
                 auditLogModelPool.returnObjects(logs);
             }

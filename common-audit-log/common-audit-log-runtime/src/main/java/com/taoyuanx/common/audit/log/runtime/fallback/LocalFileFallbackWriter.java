@@ -110,10 +110,9 @@ public class LocalFileFallbackWriter {
 
             // 自动刷盘
             autoFlush();
-
-        } catch (IOException e) {
-            log.error("Failed to write audit log to fallback file", e);
-            throw new RuntimeException("Failed to write audit log", e);
+            log.debug("fallback saved file,logContent:{}",JSON.toJSONString(model));
+        } catch (Throwable e) {
+            log.error("Failed to write audit log to fallback file,logContent:{}",JSON.toJSONString(model), e);
         } finally {
             writeLock.unlock();
         }
@@ -143,11 +142,9 @@ public class LocalFileFallbackWriter {
                 currentLines++;
             }
             autoFlush();
-            log.info("Batch wrote {} logs to fallback file", models.size());
-
-        } catch (IOException e) {
-            log.error("Failed to batch write audit logs to fallback file, size: {}", models.size(), e);
-            throw new RuntimeException("Failed to batch write audit logs", e);
+            log.debug("Batch wrote {} logs to fallback file,logContent:{}", models.size(),JSON.toJSONString(models));
+        } catch (Throwable e) {
+            log.error("Failed to batch write audit logs to fallback file, size: {},logContent:{}", models.size(), JSON.toJSONString(models),e);
         } finally {
             writeLock.unlock();
         }
@@ -257,7 +254,7 @@ public class LocalFileFallbackWriter {
     public void close() {
         writeLock.lock();
         try {
-            if (writer != null) {
+            if (writer != null ) {
                 // 关闭前强制刷盘
                 writer.flush();
                 writer.close();

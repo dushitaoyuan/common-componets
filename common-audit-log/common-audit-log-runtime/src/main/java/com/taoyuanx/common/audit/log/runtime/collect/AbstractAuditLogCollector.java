@@ -8,6 +8,7 @@ import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
 import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -43,15 +44,8 @@ public abstract class AbstractAuditLogCollector implements AuditLogCollector {
         try {
             saveAction.run();
         } catch (Throwable e) {
-            if (fallbackWriter != null) {
-                try {
-                    fallbackWriter.write(model);
-                    log.debug("fallback saved to file, logContent: {}", JSON.toJSONString(model));
-                } catch (Throwable ex) {
-                    log.error("fallback also failed", ex);
-                }
-            } else {
-                log.warn("No fallback writer configured, log lost,logContent: {}",  JSON.toJSONString(model));
+            if(model!=null){
+                autoFallBack(Arrays.asList(model),e);
             }
         }
     }
@@ -70,18 +64,17 @@ public abstract class AbstractAuditLogCollector implements AuditLogCollector {
         try {
             saveAction.run();
         } catch (Throwable e) {
-            if (fallbackWriter != null) {
-                try {
-                    fallbackWriter.writeBatch(models);
-                    log.debug("Batch saved  fallback to file, size: {},logContent：{}", models.size(),JSON.toJSONString(models), e);
-                } catch (Throwable ex) {
-                    log.error("Batch fallback failed", ex);
-                }
-            }else{
-                log.warn("No fallback writer configured, log lost,logContent: {}",  JSON.toJSONString(models));
-
-            }
+            autoFallBack(models,e);
         }
+    }
+
+    private void autoFallBack(List<AuditLogModel> models, Throwable e) {
+        if (fallbackWriter == null) {
+            log.warn("No fallback writer configured, log lost,logContent: {}", JSON.toJSONString(models));
+            return;
+        }
+        fallbackWriter.writeBatch(models);
+
     }
     
     /**
