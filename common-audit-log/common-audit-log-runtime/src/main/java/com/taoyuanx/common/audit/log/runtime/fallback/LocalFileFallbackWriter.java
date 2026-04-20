@@ -254,9 +254,7 @@ public class LocalFileFallbackWriter {
     public void close() {
         writeLock.lock();
         try {
-            if (writer != null ) {
-                // 关闭前强制刷盘
-                writer.flush();
+            if (writer != null) {
                 writer.close();
                 log.info("Closed fallback writer");
             }

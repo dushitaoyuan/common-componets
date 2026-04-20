@@ -144,19 +144,17 @@ public class FileCompensationHandler {
                 currentResult.remove();
                 
                 // 根据实际补偿结果判断成功/失败
-                // 如果有尝试补偿的记录，根据失败率判断；否则根据是否有待处理文件判断
-                boolean compensationSuccess;
+                // 只有在有实际补偿尝试时才记录结果用于熔断判断
+                boolean compensationSuccess = true; // 默认成功
                 if (result.hasAttempts()) {
                     // 有实际补偿尝试，根据成功率判断
                     compensationSuccess = result.successCount > 0;
+                    indexManager.recordCompensationResult(compensationSuccess);
                     log.debug("Compensation result: total={}, success={}, failure={}, rate={}%",
                             result.totalAttempts, result.successCount, result.failureCount,
                             String.format("%.2f", result.getFailureRate() * 100));
-                } else {
-                    // 无补偿尝试，检查是否有待处理文件
-                    compensationSuccess = !hasPendingFiles();
                 }
-                indexManager.recordCompensationResult(compensationSuccess);
+                // 无补偿尝试时不记录，避免影响熔断判断
 
                 // 动态调整扫描间隔
                 if (processedCount == 0) {

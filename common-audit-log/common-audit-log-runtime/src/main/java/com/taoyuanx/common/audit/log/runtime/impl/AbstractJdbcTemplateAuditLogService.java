@@ -495,12 +495,12 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
             return;
         }
         try {
+            autoFillLogId(auditLogModels);
             // 按租户分组（分表场景）
             auditLogModels.stream().collect(Collectors.groupingBy(AuditLogModel::getTenant)).forEach((tenant, logs) -> {
                 // 逐租户批量插入
                 String tableName = calcTableName(tenant, logTableName);
 
-                autoFillLogId(auditLogModels);
                 // 批量插入主表
                 batchInsertMainTable(tableName, logs);
 

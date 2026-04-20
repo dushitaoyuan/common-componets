@@ -1,6 +1,5 @@
 package com.taoyuanx.common.audit.log.runtime.collect;
 
-import com.taoyuanx.common.audit.log.common.LogException;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
@@ -86,7 +85,7 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
                 fallbackWriter.write(auditLogModel);
                 return;
             }
-            log.error("collectAuditLogModel async add logQueue error, logModel:{}", JSON.toJSONString(auditLogModel));
+            log.warn("collectAuditLogModel async add logQueue error, logModel:{}", JSON.toJSONString(auditLogModel));
         }
     }
 
