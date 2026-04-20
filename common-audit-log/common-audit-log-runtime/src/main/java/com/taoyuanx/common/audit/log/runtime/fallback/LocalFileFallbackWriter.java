@@ -67,11 +67,14 @@ public class LocalFileFallbackWriter {
      */
     private void initCurrentFile() {
         currentFile = new File(directory, "audit_current.log");
-        fileCreateTime = System.currentTimeMillis();
 
         try {
             if (!currentFile.exists()) {
                 currentFile.createNewFile();
+                fileCreateTime = System.currentTimeMillis();
+            } else {
+                long fileTime = currentFile.lastModified();
+                fileCreateTime = fileTime != 0 ? fileTime : System.currentTimeMillis();
             }
 
             writer = new BufferedWriter(new FileWriter(currentFile, true));
@@ -105,8 +108,8 @@ public class LocalFileFallbackWriter {
             writer.newLine();
             currentLines++;
 
-            // 双维度刷盘检查
-            checkAndFlush();
+            // 自动刷盘
+            autoFlush();
 
         } catch (IOException e) {
             log.error("Failed to write audit log to fallback file", e);
@@ -133,18 +136,13 @@ public class LocalFileFallbackWriter {
                 if (shouldRotate()) {
                     rotateFile();
                 }
-
                 // 序列化并追加写入
                 String json = JSON.toJSONString(model);
                 writer.write(json);
                 writer.newLine();
                 currentLines++;
             }
-
-            // 批量写入后立即刷盘，并更新时间戳
-            writer.flush();
-            lastFlushTime = System.currentTimeMillis();
-            
+            autoFlush();
             log.info("Batch wrote {} logs to fallback file", models.size());
 
         } catch (IOException e) {
@@ -156,9 +154,10 @@ public class LocalFileFallbackWriter {
     }
 
     /**
-     * 双维度刷盘检查（行数 OR 时间）
+     * 自动刷盘
      */
-    private void checkAndFlush() throws IOException {
+    private void autoFlush() throws IOException {
+        // 行数和时间
         boolean byLines = currentLines % FLUSH_LINE_THRESHOLD == 0;
         boolean byTime = System.currentTimeMillis() - lastFlushTime > FLUSH_TIME_THRESHOLD;
         

@@ -66,7 +66,7 @@ public class DeadLetterManager {
      */
     private void initCurrentFile() {
         String today = DATE_FORMAT.format(new Date());
-        currentFile = new File(deadLetterDir, "dead_" + today + ".json");
+        currentFile = new File(deadLetterDir, "dead_" + today + ".log");
         
         if (currentFile.exists()) {
             currentFileSize = currentFile.length();
@@ -99,11 +99,9 @@ public class DeadLetterManager {
                 DeadLetterRecord record = new DeadLetterRecord();
                 record.setOriginalLog(logModel);
                 record.setFailureReason(error.getClass().getSimpleName() + ": " + error.getMessage());
-                record.setFailedAt(new Date());
+                record.setFailedAt(System.currentTimeMillis());
                 record.setRetryCount(retryCount);
-                record.setSourceFile(sourceFile);
-                record.setLineNumber(lineNumber);
-                
+
                 // 序列化为 JSON
                 String json = JSON.toJSONString(record);
                 byte[] bytes = (json + "\n").getBytes(StandardCharsets.UTF_8);
@@ -132,7 +130,7 @@ public class DeadLetterManager {
         try {
             // 重命名当前文件为带时间戳
             String timestamp = TIMESTAMP_FORMAT.format(new Date());
-            File rotatedFile = new File(deadLetterDir, "dead_" + timestamp + ".json");
+            File rotatedFile = new File(deadLetterDir, "dead_" + timestamp + ".log");
             
             if (currentFile.renameTo(rotatedFile)) {
                 log.info("Rotated dead letter file: {} -> {}", currentFile.getName(), rotatedFile.getName());
@@ -178,7 +176,7 @@ public class DeadLetterManager {
      */
     private void cleanupExpiredFiles() {
         File dir = new File(deadLetterDir);
-        File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".log"));
         
         if (files == null || files.length == 0) {
             return;
@@ -242,21 +240,11 @@ public class DeadLetterManager {
         /**
          * 失败时间
          */
-        private Date failedAt;
+        private Long failedAt;
         
         /**
          * 重试次数
          */
         private Integer retryCount;
-        
-        /**
-         * 源文件名
-         */
-        private String sourceFile;
-        
-        /**
-         * 行号
-         */
-        private Integer lineNumber;
     }
 }
