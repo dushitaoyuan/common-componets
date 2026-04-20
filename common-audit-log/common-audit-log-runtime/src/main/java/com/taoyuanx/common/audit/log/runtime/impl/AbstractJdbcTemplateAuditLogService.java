@@ -540,11 +540,18 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
         if (logs == null || logs.isEmpty()) {
             return;
         }
-        String sql = SqlTemplateManager.getInsertSqlWithId(tableName, enableLogDetailTable);
+        String sql = null;
+        AuditLogModel auditLogModel = logs.get(0);
+        boolean includeId=auditLogModel.getId() != null;
+        if (includeId) {
+            sql = SqlTemplateManager.getInsertSqlWithId(tableName, enableLogDetailTable);
+        } else {
+            sql = SqlTemplateManager.getInsertSql(tableName, enableLogDetailTable);
+        }
         try {
             jdbcTemplate.batchUpdate(sql, logs, logs.size(), (ps, log) -> {
                 try {
-                    setParams(ps, log, true);
+                    setParams(ps, log, includeId);
                 } catch (SQLException e) {
                     throw new RuntimeException("Set batch params error", e);
                 }

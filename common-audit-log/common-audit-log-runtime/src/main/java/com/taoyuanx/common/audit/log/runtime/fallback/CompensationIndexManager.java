@@ -8,8 +8,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -33,18 +33,29 @@ public class CompensationIndexManager {
     // 当前失败追踪：fileName -> {lineNumber, retryCount}
     private final Map<String, int[]> currentFailures = new ConcurrentHashMap<>();
     private static final int MAX_RETRY_COUNT = 3;
+    
+    // 全局失败统计：时间窗口记录补偿结果（时间戳 + 结果）
+    // 使用 long[] 存储：[0]=时间戳, [1]=结果(1=成功,0=失败)
+    private final ConcurrentLinkedDeque<long[]> failureRecords;
+    private long failureWindowDuration; // 时间窗口大小（毫秒）
 
     public CompensationIndexManager(String directory) {
-        this(directory, ".compensation_index", DEFAULT_FLUSH_INTERVAL);
+        this(directory, ".compensation_index", DEFAULT_FLUSH_INTERVAL, 300000L); // 默认5分钟
     }
 
     public CompensationIndexManager(String directory, String indexFile, long flushInterval) {
+        this(directory, indexFile, flushInterval, 300000L);
+    }
+    
+    public CompensationIndexManager(String directory, String indexFile, long flushInterval, long failureWindowDuration) {
         this.indexPath = directory + File.separator + indexFile;
         this.index = new Properties();
         this.lock = new ReentrantLock();
         this.dirty = new HashMap<>();
         this.lastFlushTime = System.currentTimeMillis();
         this.flushInterval = flushInterval;
+        this.failureWindowDuration = failureWindowDuration;
+        this.failureRecords = new ConcurrentLinkedDeque<>();
         
         // 加载现有索引
         loadIndex();
@@ -267,5 +278,79 @@ public class CompensationIndexManager {
      */
     public int getMaxRetryCount() {
         return MAX_RETRY_COUNT;
+    }
+    
+    /**
+     * 记录一次补偿结果（成功或失败）
+     *
+     * @param success true=成功，false=失败
+     */
+    public void recordCompensationResult(boolean success) {
+        long timestamp = System.currentTimeMillis();
+        // 记录格式：[时间戳, 结果(1=成功,0=失败)]
+        failureRecords.addLast(new long[]{timestamp, success ? 1 : 0});
+        // 清理过期记录
+        cleanExpiredRecords();
+    }
+    
+    /**
+     * 清理过期的失败记录
+     */
+    private void cleanExpiredRecords() {
+        long cutoffTime = System.currentTimeMillis() - failureWindowDuration;
+        while (!failureRecords.isEmpty() && failureRecords.peekFirst()[0] < cutoffTime) {
+            failureRecords.removeFirst();
+        }
+    }
+    
+    /**
+     * 计算当前失败率（基于时间窗口）
+     *
+     * @return 失败率（0.0-1.0）
+     */
+    public double getFailureRate() {
+        cleanExpiredRecords();
+        if (failureRecords.isEmpty()) {
+            return 0.0;
+        }
+        long failureCount = failureRecords.stream().filter(record -> record[1] == 0).count();
+        return (double) failureCount / failureRecords.size();
+    }
+    
+    /**
+     * 获取当前时间窗口内的统计数据
+     *
+     * @return [总数, 失败数]
+     */
+    public int[] getWindowStats() {
+        cleanExpiredRecords();
+        int total = failureRecords.size();
+        int failures = (int) failureRecords.stream().filter(record -> record[1] == 0).count();
+        return new int[]{total, failures};
+    }
+    
+    /**
+     * 重置失败统计窗口
+     */
+    public void resetFailureWindow() {
+        failureRecords.clear();
+    }
+    
+    /**
+     * 更新失败统计时间窗口大小
+     *
+     * @param windowDuration 时间窗口大小（毫秒）
+     */
+    public void updateFailureWindowDuration(long windowDuration) {
+        this.failureWindowDuration = windowDuration;
+        // 清理过期记录
+        cleanExpiredRecords();
+    }
+    
+    /**
+     * 获取当前时间窗口大小
+     */
+    public long getFailureWindowDuration() {
+        return failureWindowDuration;
     }
 }

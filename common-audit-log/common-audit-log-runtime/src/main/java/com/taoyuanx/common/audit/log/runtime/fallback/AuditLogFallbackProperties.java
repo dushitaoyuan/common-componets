@@ -187,6 +187,26 @@ public class AuditLogFallbackProperties {
         private Long readLockTimeout;
 
         /**
+         * 失败率统计时间窗口（毫秒），统计该时间范围内的补偿结果
+         */
+        private Long failureWindowDuration;
+
+        /**
+         * 失败率阈值（0.0-1.0），超过此阈值触发熔断
+         */
+        private Double failureThreshold;
+
+        /**
+         * 熔断持续时间（毫秒），熔断期间暂停补偿
+         */
+        private Long circuitBreakerDuration;
+
+        /**
+         * 熔断后恢复的初始间隔倍数
+         */
+        private Integer circuitBreakerRecoveryMultiplier;
+
+        /**
          * 低频场景配置
          */
         public void initLow() {
@@ -194,6 +214,10 @@ public class AuditLogFallbackProperties {
             setDefault("maxInterval", 120000L);      // 2分钟
             setDefault("batchSize", 50);
             setDefault("readLockTimeout", 5000L);    // 5秒
+            setDefault("failureWindowDuration", 300000L); // 5分钟时间窗口
+            setDefault("failureThreshold", 0.6);     // 60%失败率触发熔断
+            setDefault("circuitBreakerDuration", 60000L); // 熔断1分钟
+            setDefault("circuitBreakerRecoveryMultiplier", 2);
         }
 
         /**
@@ -204,6 +228,10 @@ public class AuditLogFallbackProperties {
             setDefault("maxInterval", 60000L);       // 60秒
             setDefault("batchSize", 100);
             setDefault("readLockTimeout", 3000L);    // 3秒
+            setDefault("failureWindowDuration", 300000L); // 5分钟时间窗口
+            setDefault("failureThreshold", 0.5);     // 50%失败率触发熔断
+            setDefault("circuitBreakerDuration", 30000L); // 熔断30秒
+            setDefault("circuitBreakerRecoveryMultiplier", 2);
         }
 
         /**
@@ -214,6 +242,10 @@ public class AuditLogFallbackProperties {
             setDefault("maxInterval", 30000L);       // 30秒
             setDefault("batchSize", 200);
             setDefault("readLockTimeout", 2000L);    // 2秒
+            setDefault("failureWindowDuration", 300000L); // 5分钟时间窗口
+            setDefault("failureThreshold", 0.4);     // 40%失败率触发熔断
+            setDefault("circuitBreakerDuration", 15000L); // 熔断15秒
+            setDefault("circuitBreakerRecoveryMultiplier", 2);
         }
 
         /**

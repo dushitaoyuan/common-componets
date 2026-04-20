@@ -67,6 +67,31 @@ audit:
         # 默认值根据 logScene 自动设置：
         #   low: 5秒, normal: 3秒, high: 2秒
         read-lock-timeout: 3000
+        
+        # ==================== 熔断配置（失败率感知）====================
+        # 当补偿近期失败过多时，自动触发熔断暂停补偿
+        
+        # 失败率统计时间窗口（毫秒）
+        # 统计该时间范围内的补偿结果用于计算失败率
+        # 默认值：300000 (5分钟)
+        failure-window-duration: 300000
+        
+        # 失败率阈值（0.0-1.0）
+        # 当时间窗口内失败率超过此阈值时触发熔断
+        # 默认值根据 logScene 自动设置：
+        #   low: 0.6 (60%), normal: 0.5 (50%), high: 0.4 (40%)
+        failure-threshold: 0.5
+        
+        # 熔断持续时间（毫秒）
+        # 熔断触发后暂停补偿的时间
+        # 默认值根据 logScene 自动设置：
+        #   low: 60秒, normal: 30秒, high: 15秒
+        circuit-breaker-duration: 30000
+        
+        # 熔断恢复后的间隔倍数
+        # 熔断恢复后使用 initial-interval * multiplier 作为扫描间隔
+        # 默认值：2
+        circuit-breaker-recovery-multiplier: 2
 
 # ==================== 典型场景配置参考 ====================
 
@@ -83,6 +108,8 @@ audit:
 #      # rotation.max-age: 12小时
 #      # compensation.initial-interval: 10秒
 #      # compensation.batch-size: 50
+#      # compensation.failure-threshold: 0.6 (60%失败率触发熔断)
+#      # compensation.circuit-breaker-duration: 60秒
 
 # 场景2：生产环境（高可用，大数据量）
 #audit:
@@ -98,6 +125,8 @@ audit:
 #      # compensation.initial-interval: 2秒
 #      # compensation.max-interval: 30秒
 #      # compensation.batch-size: 200
+#      # compensation.failure-threshold: 0.4 (40%失败率触发熔断)
+#      # compensation.circuit-breaker-duration: 15秒
 
 # 场景3：自定义配置（覆盖默认值）
 #audit:
@@ -112,6 +141,8 @@ audit:
 #      compensation:
 #        initial-interval: 3000  # 自定义：3秒
 #        batch-size: 150  # 自定义：150条
+#        failure-threshold: 0.3  # 自定义：30%失败率触发熔断
+#        circuit-breaker-duration: 60000  # 自定义：熔断1分钟
 
 # ==================== 监控命令参考 ====================
 

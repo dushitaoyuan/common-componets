@@ -86,7 +86,12 @@ public class DeadLetterManager {
      * @param lineNumber 行号
      * @param retryCount 重试次数
      */
-    public void writeDeadLetter(AuditLogModel logModel, Throwable error, 
+    public void writeDeadLetter(AuditLogModel logModel, Throwable error,
+                                String sourceFile, int lineNumber, int retryCount) {
+
+        writeDeadLetter(JSON.toJSONString(logModel),error,sourceFile,lineNumber,retryCount);
+    }
+    public void writeDeadLetter(String originalLog, Throwable error,
                                 String sourceFile, int lineNumber, int retryCount) {
         synchronized (writeLock) {
             try {
@@ -94,10 +99,10 @@ public class DeadLetterManager {
                 if (currentFileSize >= maxFileSize) {
                     rotateFile();
                 }
-                
+
                 // 构建记录
                 DeadLetterRecord record = new DeadLetterRecord();
-                record.setOriginalLog(logModel);
+                record.setOriginalLog(originalLog);
                 record.setFailureReason(error.getClass().getSimpleName() + ": " + error.getMessage());
                 record.setFailedAt(System.currentTimeMillis());
                 record.setRetryCount(retryCount);
@@ -105,18 +110,18 @@ public class DeadLetterManager {
                 // 序列化为 JSON
                 String json = JSON.toJSONString(record);
                 byte[] bytes = (json + "\n").getBytes(StandardCharsets.UTF_8);
-                
+
                 // 追加写入
                 try (FileOutputStream fos = new FileOutputStream(currentFile, true)) {
                     fos.write(bytes);
                     fos.flush();
                 }
-                
+
                 currentFileSize += bytes.length;
-                
-                log.error("Dead letter written to: {}, file: {}, line: {}, reason: {}", 
-                         currentFile.getName(), sourceFile, lineNumber, record.getFailureReason());
-                
+
+                log.error("Dead letter written to: {}, file: {}, line: {}, reason: {}",
+                        currentFile.getName(), sourceFile, lineNumber, record.getFailureReason());
+
             } catch (Exception e) {
                 log.error("Failed to write dead letter", e);
             }
@@ -230,7 +235,7 @@ public class DeadLetterManager {
         /**
          * 原始日志
          */
-        private AuditLogModel originalLog;
+        private String originalLog;
         
         /**
          * 失败原因

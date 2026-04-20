@@ -2,6 +2,9 @@ spring:
   profiles:
     active: h2
 
+server:
+  port: 8080
+
 graceful-response:
   responseStyle: 1
   defaultSuccessCode: 200
@@ -13,7 +16,6 @@ audit:
     basePackages: com.taoyuanx.common.log.web
     logScene: high
     appId: default
-    batchEnabled: true
 
 db:
   init:
