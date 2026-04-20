@@ -45,8 +45,8 @@ public abstract class AbstractAuditLogCollector implements AuditLogCollector {
         } catch (Throwable e) {
             if (fallbackWriter != null) {
                 try {
-                    log.debug("fallback to file, logContent: {}", JSON.toJSONString(model));
                     fallbackWriter.write(model);
+                    log.debug("fallback saved to file, logContent: {}", JSON.toJSONString(model));
                 } catch (Throwable ex) {
                     log.error("fallback also failed", ex);
                 }
@@ -72,8 +72,8 @@ public abstract class AbstractAuditLogCollector implements AuditLogCollector {
         } catch (Throwable e) {
             if (fallbackWriter != null) {
                 try {
-                    log.debug("Batch save failed, fallback to file, size: {},logContent：{}", models.size(),JSON.toJSONString(models), e);
                     fallbackWriter.writeBatch(models);
+                    log.debug("Batch saved  fallback to file, size: {},logContent：{}", models.size(),JSON.toJSONString(models), e);
                 } catch (Throwable ex) {
                     log.error("Batch fallback failed", ex);
                 }
