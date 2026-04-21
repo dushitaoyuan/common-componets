@@ -26,10 +26,13 @@ public class LogContext {
         if (methodInvocation != null) {
             AuditLogContextUtil.set(key, value);
         } else {
+            if (value == null) {
+                logContextMap.remove(key);
+                return;
+            }
             logContextMap.put(key, value);
         }
     }
-
     public Map<String, Object> getLogContextMap() {
         return logContextMap;
     }

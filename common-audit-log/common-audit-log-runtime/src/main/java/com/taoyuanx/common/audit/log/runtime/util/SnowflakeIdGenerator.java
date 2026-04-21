@@ -267,7 +267,7 @@ public class SnowflakeIdGenerator {
     private static String getHostInfo() {
         try {
             String hostname = InetAddress.getLocalHost().getHostName();
-            String ip = InetAddress.getLocalHost().getHostAddress();
+            String ip = IpUtil.getLocalIp();
             return hostname + "_" + ip;
         } catch (Exception e) {
             log.warn("Failed to get host info, using UUID", e);
