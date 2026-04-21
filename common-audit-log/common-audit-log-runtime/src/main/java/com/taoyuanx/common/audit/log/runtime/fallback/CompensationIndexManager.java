@@ -28,8 +28,7 @@ public class CompensationIndexManager {
     private final Map<String, Integer> dirty;
     private volatile long lastFlushTime;
     private final long flushInterval;
-    private static final long DEFAULT_FLUSH_INTERVAL = 5000; // 默认5秒
-    
+
     // 当前失败追踪：fileName -> {lineNumber, retryCount}
     private final Map<String, int[]> currentFailures = new ConcurrentHashMap<>();
     private static final int MAX_RETRY_COUNT = 3;
@@ -40,7 +39,7 @@ public class CompensationIndexManager {
     private long failureWindowDuration; // 时间窗口大小（毫秒）
 
     public CompensationIndexManager(String directory) {
-        this(directory, ".compensation_index", DEFAULT_FLUSH_INTERVAL, 300000L); // 默认5分钟
+        this(directory, ".compensation_index", 200L, 300000L); // 默认5分钟
     }
 
     public CompensationIndexManager(String directory, String indexFile, long flushInterval) {
@@ -334,6 +333,20 @@ public class CompensationIndexManager {
      */
     public void resetFailureWindow() {
         failureRecords.clear();
+    }
+    
+    /**
+     * 检查时间窗口内是否有失败记录
+     *
+     * @return true 表示窗口内有失败，应使用单条补偿
+     */
+    public boolean hasFailureInWindow() {
+        cleanExpiredRecords();
+        if (failureRecords.isEmpty()) {
+            return false;
+        }
+        // 检查是否有失败记录
+        return failureRecords.stream().anyMatch(record -> record[1] == 0);
     }
     
     /**

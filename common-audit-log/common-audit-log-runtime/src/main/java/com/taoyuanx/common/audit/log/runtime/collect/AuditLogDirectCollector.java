@@ -1,8 +1,8 @@
 package com.taoyuanx.common.audit.log.runtime.collect;
 
+import com.taoyuanx.common.audit.log.fallback.FallBackWriter;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
 import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 
 /**
@@ -15,7 +15,7 @@ public class AuditLogDirectCollector extends AbstractAuditLogCollector {
 
     public AuditLogDirectCollector(AuditLogStoreService auditLogService,
                                    AuditLogModelPool auditLogModelPool,
-                                   LocalFileFallbackWriter fallbackWriter) {
+                                   FallBackWriter fallbackWriter) {
         super(auditLogService, auditLogModelPool, fallbackWriter);
     }
 

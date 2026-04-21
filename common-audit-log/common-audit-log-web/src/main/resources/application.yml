@@ -17,6 +17,7 @@ audit:
     logScene: high
     appId: default
 
+
 db:
   init:
     enabled: true

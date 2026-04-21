@@ -6,6 +6,7 @@ import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
 import com.taoyuanx.common.audit.log.common.LogIdGenerator;
 import com.taoyuanx.common.audit.log.context.AuditLogContextUtil;
 import com.taoyuanx.common.audit.log.diff.handler.FieldDiffHandler;
+import com.taoyuanx.common.audit.log.fallback.FallBackWriter;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogAsyncCollector;
 import com.taoyuanx.common.audit.log.runtime.collect.AuditLogDirectCollector;
@@ -68,7 +69,7 @@ public class AuditLogConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogCollector auditLogCollector(@Autowired AuditLogStoreService auditLogStoreService, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) AuditLogModelPool auditLogModelPool, @Autowired(required = false) LocalFileFallbackWriter fallbackWriter) {
+    public AuditLogCollector auditLogCollector(@Autowired AuditLogStoreService auditLogStoreService, @Autowired AuditLogProperties auditLogProperties, @Autowired(required = false) AuditLogModelPool auditLogModelPool, @Autowired(required = false) FallBackWriter fallbackWriter) {
         AuditLogContextUtil.initLocal(auditLogProperties.getAllowNestLog() == null || Objects.equals(auditLogProperties.getAllowNestLog(), true) ? true : false);
         if (Objects.equals(auditLogProperties.getAsync(), Boolean.TRUE)) {
             if (Objects.equals(auditLogProperties.getUseDisruptor(), Boolean.TRUE)) {

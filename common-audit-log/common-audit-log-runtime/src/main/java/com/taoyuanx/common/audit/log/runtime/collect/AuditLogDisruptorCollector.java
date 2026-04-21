@@ -3,12 +3,12 @@ package com.taoyuanx.common.audit.log.runtime.collect;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
+import com.taoyuanx.common.audit.log.fallback.FallBackWriter;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEvent;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEventFactory;
 import com.taoyuanx.common.audit.log.runtime.collect.lmax.AuditLogEventHandler;
-import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
 import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,7 +32,7 @@ public class AuditLogDisruptorCollector extends AbstractAuditLogCollector {
 
     private static final int DEFAULT_RING_BUFFER_SIZE = 1024;
 
-    public AuditLogDisruptorCollector(AuditLogStoreService auditLogService, Integer ringBufferSize, AuditLogModelPool auditLogModelPool, Boolean batchEnabled, Integer batchSize, LocalFileFallbackWriter fallbackWriter) {
+    public AuditLogDisruptorCollector(AuditLogStoreService auditLogService, Integer ringBufferSize, AuditLogModelPool auditLogModelPool, Boolean batchEnabled, Integer batchSize, FallBackWriter fallbackWriter) {
         super(auditLogService, auditLogModelPool, fallbackWriter);
 
         this.ringBufferSize = ringBufferSize == null ? DEFAULT_RING_BUFFER_SIZE : ringBufferSize;

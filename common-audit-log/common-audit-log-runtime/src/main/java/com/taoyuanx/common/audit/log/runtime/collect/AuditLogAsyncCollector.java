@@ -1,8 +1,8 @@
 package com.taoyuanx.common.audit.log.runtime.collect;
 
+import com.taoyuanx.common.audit.log.fallback.FallBackWriter;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
 import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import com.taoyuanx.common.audit.log.util.AuditLogUtil;
 import com.alibaba.fastjson2.JSON;
@@ -47,7 +47,7 @@ public class AuditLogAsyncCollector extends AbstractAuditLogCollector {
     public AuditLogAsyncCollector(AuditLogStoreService auditLogService, Integer logQueueSize, Integer collectInterval,
                                   Integer queueFullWaitTime, AuditLogModelPool auditLogModelPool,
                                   Boolean batchEnabled, Integer batchSize, Long batchMaxWaitTime,
-                                  LocalFileFallbackWriter fallbackWriter) {
+                                  FallBackWriter fallbackWriter) {
         super(auditLogService, auditLogModelPool, fallbackWriter);
 
         this.collectInterval = collectInterval == null ? DEFAULT_LOG_COLLECT_INTERVAL : collectInterval;

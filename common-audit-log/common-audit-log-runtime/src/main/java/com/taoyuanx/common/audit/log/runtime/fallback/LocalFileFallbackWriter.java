@@ -1,13 +1,15 @@
 package com.taoyuanx.common.audit.log.runtime.fallback;
 
-import com.alibaba.fastjson2.JSON;
+import com.taoyuanx.common.audit.log.fallback.FallBackWriter;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
+import com.taoyuanx.common.audit.log.runtime.util.FileUtil;
+import com.taoyuanx.common.audit.log.runtime.util.LogUtil;
+import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
+import com.taoyuanx.common.audit.log.util.AuditLogUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -19,11 +21,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @date 2026-04-16
  */
 @Slf4j
-public class LocalFileFallbackWriter {
+public class LocalFileFallbackWriter implements FallBackWriter{
 
     private final String directory;
     private final AuditLogFallbackProperties.RotationConfig rotationConfig;
-    private final CompensationIndexManager indexManager;
 
     private File currentFile;
     private BufferedWriter writer;
@@ -35,39 +36,44 @@ public class LocalFileFallbackWriter {
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
 
+
     private volatile long lastFlushTime;
     private static final int FLUSH_LINE_THRESHOLD = 100;
     private static final long FLUSH_TIME_THRESHOLD = 5000; // 5秒
 
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd");
+    private FileCompensationHandler compensationHandler;
+    private  CompensationIndexManager indexManager;
 
-    public LocalFileFallbackWriter(AuditLogFallbackProperties properties,
-                                   CompensationIndexManager indexManager) {
-        this.directory = properties.getDirectory();
-        this.rotationConfig = properties.getRotation();
-        this.indexManager = indexManager;
+    public LocalFileFallbackWriter(String dataDir,AuditLogFallbackProperties fallbackProperties, AuditLogStoreService storeService) {
+        this.directory = fallbackProperties.getDirectory();
+        this.rotationConfig = fallbackProperties.getRotation();
         this.rwLock = new ReentrantReadWriteLock();
         this.readLock = rwLock.readLock();
         this.writeLock = rwLock.writeLock();
 
-        // 创建目录
-        File dir = new File(directory);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
+        // 1. 初始化
+        init();
 
-        // 初始化当前文件
-        initCurrentFile();
-        
+        // 2. 启动补偿线程
+        long flushInterval = 2000L;
+
+        this.indexManager = new CompensationIndexManager(dataDir, ".compensation_index", flushInterval);
+        this.compensationHandler = new FileCompensationHandler(dataDir,
+                storeService,
+                this,
+                fallbackProperties,indexManager,flushInterval
+        );
+        this.compensationHandler.start();
+        log.info("Fallback system initialized: writer, index, compensation, dead-letter");
         this.lastFlushTime = System.currentTimeMillis();
     }
 
     /**
      * 初始化当前文件
      */
-    private void initCurrentFile() {
+    private void init() {
+        FileUtil.foreMkDirs(directory);
         currentFile = new File(directory, "audit_current.log");
-
         try {
             if (!currentFile.exists()) {
                 currentFile.createNewFile();
@@ -76,7 +82,6 @@ public class LocalFileFallbackWriter {
                 long fileTime = currentFile.lastModified();
                 fileCreateTime = fileTime != 0 ? fileTime : System.currentTimeMillis();
             }
-
             writer = new BufferedWriter(new FileWriter(currentFile, true));
             currentLines = countLines(currentFile);
             sequence = findMaxSequence();
@@ -102,53 +107,49 @@ public class LocalFileFallbackWriter {
                 rotateFile();
             }
 
-            // 序列化并追加写入
-            String json = JSON.toJSONString(model);
+            String json = LogUtil.logToString(model);
             writer.write(json);
             writer.newLine();
             currentLines++;
 
             // 自动刷盘
             autoFlush();
-            log.debug("fallback saved file,logContent:{}",JSON.toJSONString(model));
+            log.debug("fallback saved file,logContent:{}", LogUtil.logToString(model));
         } catch (Throwable e) {
-            log.error("Failed to write audit log to fallback file,logContent:{}",JSON.toJSONString(model), e);
+            log.error("Failed to write audit log to fallback file,logContent:{}", LogUtil.logToString(model), e);
         } finally {
             writeLock.unlock();
         }
     }
 
-    /**
-     * 批量写入日志
-     *
-     * @param models 审计日志模型列表
-     */
-    public void writeBatch(List<AuditLogModel> models) {
-        if (models == null || models.isEmpty()) {
+    @Override
+    public void write(List<AuditLogModel> logs) {
+        if (logs == null || logs.isEmpty()) {
             return;
         }
 
         writeLock.lock();
         try {
-            for (AuditLogModel model : models) {
+            for (AuditLogModel model : logs) {
                 // 检查是否需要滚动
                 if (shouldRotate()) {
                     rotateFile();
                 }
-                // 序列化并追加写入
-                String json = JSON.toJSONString(model);
+                String json = LogUtil.logToString(model);
                 writer.write(json);
                 writer.newLine();
                 currentLines++;
             }
             autoFlush();
-            log.debug("Batch wrote {} logs to fallback file,logContent:{}", models.size(),JSON.toJSONString(models));
+            log.debug("Batch wrote {} logs to fallback file,logContent:{}", logs.size(), LogUtil.logToString(logs));
         } catch (Throwable e) {
-            log.error("Failed to batch write audit logs to fallback file, size: {},logContent:{}", models.size(), JSON.toJSONString(models),e);
+            log.error("Failed to batch write audit logs to fallback file, size: {},logContent:{}", logs.size(), LogUtil.logToString(logs),e);
         } finally {
             writeLock.unlock();
         }
     }
+
+
 
     /**
      * 自动刷盘
@@ -222,7 +223,7 @@ public class LocalFileFallbackWriter {
      */
     private String generateFileName() {
         sequence++;
-        String dateStr = DATE_FORMAT.format(new Date());
+        String dateStr = AuditLogUtil.formatTimestampToDateStr(System.currentTimeMillis());
         return String.format("audit_%s_%03d.log", dateStr, sequence);
     }
 
@@ -258,6 +259,7 @@ public class LocalFileFallbackWriter {
                 writer.close();
                 log.info("Closed fallback writer");
             }
+            compensationHandler.stop();
         } catch (IOException e) {
             log.error("Failed to close fallback writer", e);
         } finally {

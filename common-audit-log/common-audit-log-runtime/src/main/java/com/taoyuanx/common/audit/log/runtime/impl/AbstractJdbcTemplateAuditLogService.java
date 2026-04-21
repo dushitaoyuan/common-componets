@@ -110,6 +110,9 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
     public void saveAuditLog(AuditLogModel auditLogModel) {
         String tableName = calcTableName(auditLogModel.getTenant(), logTableName);
         autoFillLogId(auditLogModel);
+        if(true){
+            throw  new RuntimeException("fail saved");
+        }
         /**
          * 记录主表和详情表
          */
@@ -489,6 +492,9 @@ public abstract class AbstractJdbcTemplateAuditLogService implements AuditLogSto
 
         if (auditLogModels == null || auditLogModels.isEmpty()) {
             return;
+        }
+        if(true){
+            throw  new RuntimeException("fail saved");
         }
         if (auditLogModels.size() == 1) {
             saveAuditLog(auditLogModels.get(0));

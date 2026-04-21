@@ -2,9 +2,9 @@ package com.taoyuanx.common.audit.log.runtime.collect;
 
 import com.alibaba.fastjson2.JSON;
 import com.taoyuanx.common.audit.log.collect.AuditLogCollector;
+import com.taoyuanx.common.audit.log.fallback.FallBackWriter;
 import com.taoyuanx.common.audit.log.model.AuditLogModel;
 import com.taoyuanx.common.audit.log.pool.AuditLogModelPool;
-import com.taoyuanx.common.audit.log.runtime.fallback.LocalFileFallbackWriter;
 import com.taoyuanx.common.audit.log.service.AuditLogStoreService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,11 +23,11 @@ public abstract class AbstractAuditLogCollector implements AuditLogCollector {
     
     protected final AuditLogStoreService auditLogService;
     protected final AuditLogModelPool auditLogModelPool;
-    protected final LocalFileFallbackWriter fallbackWriter;
+    protected final FallBackWriter fallbackWriter;
     
     public AbstractAuditLogCollector(AuditLogStoreService auditLogService,
                                      AuditLogModelPool auditLogModelPool,
-                                     LocalFileFallbackWriter fallbackWriter) {
+                                     FallBackWriter fallbackWriter) {
         this.auditLogService = auditLogService;
         this.auditLogModelPool = auditLogModelPool;
         this.fallbackWriter = fallbackWriter;
@@ -73,7 +73,7 @@ public abstract class AbstractAuditLogCollector implements AuditLogCollector {
             log.warn("No fallback writer configured, log lost,logContent: {}", JSON.toJSONString(models));
             return;
         }
-        fallbackWriter.writeBatch(models);
+        fallbackWriter.write(models);
 
     }
     
