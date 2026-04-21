@@ -32,7 +32,7 @@ public class FileCompensationHandler {
     private volatile boolean running;
     private Thread compensationThread;
     private long scanInterval;
-    
+
     // 熔断状态
     private volatile boolean circuitBreakerOpen = false;
     private volatile long circuitBreakerOpenTime = 0;
@@ -42,14 +42,14 @@ public class FileCompensationHandler {
     public FileCompensationHandler(String dataDir,
                                    AuditLogStoreService storeService,
                                    LocalFileFallbackWriter fallbackWriter,
-                                   AuditLogFallbackProperties properties,CompensationIndexManager indexManager,long flushInterval) {
+                                   AuditLogFallbackProperties properties, CompensationIndexManager indexManager, long flushInterval) {
 
         this.directory = properties.getDirectory();
         this.storeService = storeService;
         this.fallbackWriter = fallbackWriter;
         this.compensationConfig = properties.getCompensation();
         this.scanInterval = compensationConfig.getInitialInterval();
-        this.indexManager=indexManager;
+        this.indexManager = indexManager;
 
         // 1. 死信管理器初始化
         this.deadLetterManager = new DeadLetterManager(dataDir);
@@ -89,6 +89,9 @@ public class FileCompensationHandler {
      * 停止补偿线程
      */
     public void stop() {
+        if (running = false) {
+            return;
+        }
         running = false;
         if (compensationThread != null) {
             compensationThread.interrupt();
@@ -117,7 +120,7 @@ public class FileCompensationHandler {
                     Thread.sleep(compensationConfig.getInitialInterval());
                     continue;
                 }
-                
+
                 int processedCount = compensateAllFiles();
 
                 // 动态调整扫描间隔
@@ -137,7 +140,7 @@ public class FileCompensationHandler {
             }
         }
     }
-    
+
     /**
      * 检查熔断状态
      *
@@ -147,7 +150,7 @@ public class FileCompensationHandler {
         if (!circuitBreakerOpen) {
             return false;
         }
-        
+
         // 检查是否到达恢复时间
         long duration = compensationConfig.getCircuitBreakerDuration();
         if (System.currentTimeMillis() - circuitBreakerOpenTime >= duration) {
@@ -159,11 +162,11 @@ public class FileCompensationHandler {
             log.info("Circuit breaker recovered, entering half-open state with interval: {}ms", scanInterval);
             return false;
         }
-        
+
         // 熔断仍然开启，等待
         long remainingTime = duration - (System.currentTimeMillis() - circuitBreakerOpenTime);
         log.debug("Circuit breaker open, remaining time: {}ms", remainingTime);
-        
+
         try {
             Thread.sleep(Math.min(remainingTime, 5000));
         } catch (InterruptedException e) {
@@ -171,43 +174,43 @@ public class FileCompensationHandler {
         }
         return true;
     }
-    
+
     /**
      * 检查并触发熔断（在具体补偿逻辑中调用）
+     *
      * @return true 表示触发了熔断
      */
     private boolean checkAndTriggerCircuitBreaker() {
         double failureRate = indexManager.getFailureRate();
         double threshold = compensationConfig.getFailureThreshold();
-        
+
         int[] stats = indexManager.getWindowStats();
         int minSamples = 3;
-        
+
         if (stats[0] >= minSamples && failureRate >= threshold) {
             openCircuitBreaker(failureRate, stats);
             return true;
         }
         return false;
     }
-    
+
     /**
      * 开启熔断
      */
     private void openCircuitBreaker(double failureRate, int[] stats) {
         circuitBreakerOpen = true;
         circuitBreakerOpenTime = System.currentTimeMillis();
-        
+
         log.warn("Circuit breaker OPENED due to high failure rate: {}% (threshold: {}%), " +
-                "window stats: {}/{} failures, will pause for {}ms",
+                        "window stats: {}/{} failures, will pause for {}ms",
                 String.format("%.2f", failureRate * 100),
                 String.format("%.2f", compensationConfig.getFailureThreshold() * 100),
                 stats[1], stats[0],
                 compensationConfig.getCircuitBreakerDuration());
-        
+
         // 重置失败窗口，避免恢复后立即再次熔断
         indexManager.resetFailureWindow();
     }
-    
 
 
     /**
@@ -316,7 +319,7 @@ public class FileCompensationHandler {
             while ((line = reader.readLine()) != null) {
                 currentLine++;
                 int lineNumber = startLine + currentLine;
-                
+
                 if (indexManager.isPermanentlyFailed(fileName, lineNumber)) {
                     indexManager.updateCompensatedLines(fileName, lineNumber);
                     indexManager.clearFailure(fileName);
@@ -327,7 +330,7 @@ public class FileCompensationHandler {
                 if (model == null) {
                     continue;
                 }
-                
+
                 // 单条保存
                 int savedCount = saveSingleWithRetry(model, fileName, lineNumber);
                 if (savedCount > 0) {
@@ -360,9 +363,10 @@ public class FileCompensationHandler {
             return false;
         }
     }
-    
+
     /**
      * 解析行数据（使用 LogModelUtil 统一序列化/反序列化）
+     *
      * @return 解析成功返回model，失败返回null（解析失败已写入死信）
      */
     private AuditLogModel parseLine(String line, String fileName, int lineNumber) {
@@ -378,13 +382,13 @@ public class FileCompensationHandler {
         }
     }
 
-    
+
     /**
      * 保存单条数据（带重试和失败追踪）
      *
-     * @param model       单条数据
-     * @param fileName    文件名
-     * @param lineNumber  行号
+     * @param model      单条数据
+     * @param fileName   文件名
+     * @param lineNumber 行号
      * @return 成功保存返回1，否则返回0
      */
     private int saveSingleWithRetry(AuditLogModel model, String fileName, int lineNumber) {
@@ -394,17 +398,17 @@ public class FileCompensationHandler {
         } catch (Exception e) {
             log.error("Failed to save single record, file: {}, line: {}, will retry next scan",
                     fileName, lineNumber, e);
-            
+
             // 记录失败次数
             indexManager.recordFailure(fileName, lineNumber);
-            
+
             // 写入死信文件
             writeCompensationDeadLetter(model, e, fileName, lineNumber);
-            
+
             return 0;
         }
     }
-    
+
     /**
      * 写入解析失败的死信记录
      */
@@ -415,12 +419,12 @@ public class FileCompensationHandler {
             log.error("Failed to write parse dead letter", e);
         }
     }
-    
+
     /**
      * 写入补偿失败的死信记录
      */
     private void writeCompensationDeadLetter(AuditLogModel model, Throwable error,
-                                              String fileName, int lineNumber) {
+                                             String fileName, int lineNumber) {
         try {
             deadLetterManager.writeDeadLetter(model, error, fileName, lineNumber, 0);
         } catch (Exception e) {
