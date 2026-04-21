@@ -255,11 +255,11 @@ public class LocalFileFallbackWriter implements FallBackWriter{
     public void close() {
         writeLock.lock();
         try {
+            compensationHandler.stop();
             if (writer != null) {
                 writer.close();
                 log.info("Closed fallback writer");
             }
-            compensationHandler.stop();
         } catch (IOException e) {
             log.error("Failed to close fallback writer", e);
         } finally {
