@@ -1,5 +1,6 @@
 package com.taoyuanx.common.audit.log.aop;
 
+import com.taoyuanx.common.audit.log.context.LogContext;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
@@ -19,50 +20,51 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 public class SpElUtil {
-  public static final String SPRING_EL_PREFIX = "#";
-  private static final ParameterNameDiscoverer PARAMETER_NAME_DISCOVERER =
-      new LocalVariableTableParameterNameDiscoverer();
-  private static final ExpressionParser EXPRESSION_PARSER = new SpelExpressionParser();
-  private static final Map<String, Expression> EXPRESSION_CACHE = new ConcurrentHashMap<>();
+    public static final String SPRING_EL_PREFIX = "#";
+    private static final ParameterNameDiscoverer PARAMETER_NAME_DISCOVERER =
+            new LocalVariableTableParameterNameDiscoverer();
+    private static final ExpressionParser EXPRESSION_PARSER = new SpelExpressionParser();
+    private static final Map<String, Expression> EXPRESSION_CACHE = new ConcurrentHashMap<>();
 
-  private static boolean isSpEl(String originParsableTarget) {
-    return StringUtils.hasLength(originParsableTarget)
-        && originParsableTarget.contains(SPRING_EL_PREFIX);
-  }
+    private static boolean isSpEl(String originParsableTarget) {
+        return StringUtils.hasLength(originParsableTarget)
+                && originParsableTarget.contains(SPRING_EL_PREFIX);
+    }
 
-  public static <T> T eval(
-      MethodInvocation methodInvocation,
-      String expression,
-      Object result,
-      Class<T> evalReturnType) {
-    if (methodInvocation == null || expression == null || evalReturnType == null) {
-      return null;
+    public static <T> T eval(
+            String expression,
+            Class<T> evalReturnType, LogContext logContext) {
+        MethodInvocation methodInvocation = logContext.getMethodInvocation();
+        if (methodInvocation == null || expression == null || evalReturnType == null) {
+            return null;
+        }
+        if (!isSpEl(expression)) {
+            return null;
+        }
+        try {
+            Expression exp =
+                    EXPRESSION_CACHE.computeIfAbsent(expression, EXPRESSION_PARSER::parseExpression);
+            MethodBasedEvaluationContext context = logContext.getElContext() != null ? logContext.getElContext() :
+                    new MethodBasedEvaluationContext(
+                            methodInvocation.getThis(),
+                            methodInvocation.getMethod(),
+                            methodInvocation.getArguments(),
+                            PARAMETER_NAME_DISCOVERER);
+            context.setVariable("result", logContext.getResult());
+            context.setVariable("e", logContext.getE());
+            context.setVariable("logContext", logContext.getLogContextMap());
+            logContext.setElContext(context);
+            return exp.getValue(context, evalReturnType);
+        } catch (Exception e) {
+            log.error("spElExecute error, expression: {}, result: {}", expression, logContext.getResult(), e);
+        }
+        return null;
     }
-    if (!isSpEl(expression)) {
-      return null;
-    }
-    try {
-      Expression exp =
-          EXPRESSION_CACHE.computeIfAbsent(expression, EXPRESSION_PARSER::parseExpression);
-      EvaluationContext context =
-          new MethodBasedEvaluationContext(
-              methodInvocation.getThis(),
-              methodInvocation.getMethod(),
-              methodInvocation.getArguments(),
-              PARAMETER_NAME_DISCOVERER);
-      context.setVariable("result", result);
-      return exp.getValue(context, evalReturnType);
-    } catch (Exception e) {
-      log.error("spElExecute error, expression: {}, result: {}", expression, result, e);
-    }
-    return null;
-  }
 
-  public static String autoEval(
-      MethodInvocation methodInvocation, String expression, Object result) {
-    if (!isSpEl(expression)) {
-      return expression;
+    public static String autoEval(String expression, LogContext logContext) {
+        if (!isSpEl(expression)) {
+            return expression;
+        }
+        return eval(expression, String.class, logContext);
     }
-    return eval(methodInvocation, expression, result, String.class);
-  }
 }

@@ -1,13 +1,26 @@
 package com.taoyuanx.common.audit.log.context;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.aopalliance.intercept.MethodInvocation;
+import org.springframework.context.expression.MethodBasedEvaluationContext;
+import org.springframework.expression.EvaluationContext;
 
 import java.util.HashMap;
 import java.util.Map;
-
 public class LogContext {
     private MethodInvocation methodInvocation;
     private Map<String, Object> logContextMap;
+    @Getter
+    @Setter
+    private Object result;
+    @Getter
+    @Setter
+    private Throwable e;
+    @Setter
+    @Getter
+    private MethodBasedEvaluationContext elContext;
+
 
 
     public LogContext(MethodInvocation methodInvocation, Map<String, Object> logContextMap) {
@@ -18,6 +31,7 @@ public class LogContext {
     public LogContext(Map<String, Object> logContextMap) {
         this.logContextMap = logContextMap;
     }
+
     public LogContext() {
         this(new HashMap<>());
     }
@@ -33,6 +47,7 @@ public class LogContext {
             logContextMap.put(key, value);
         }
     }
+
     public Map<String, Object> getLogContextMap() {
         return logContextMap;
     }
@@ -45,6 +60,8 @@ public class LogContext {
         if (logContextMap != null) {
             return (T) logContextMap.get(key);
         }
-        return  null;
+        return null;
     }
+
+
 }

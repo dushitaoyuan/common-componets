@@ -61,17 +61,18 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         LogContext logContext = AuditLogUtil.initAuditLogContext(invocation, logFillHandlers);
         try {
             result = invocation.proceed();
+            logContext.setResult(result);
         } catch (Throwable e) {
-            ex = e;
+            logContext.setE(e);
             throw e;
         } finally {
-            collectAuditLogModel(result, ex, logContext, startTime);
+            collectAuditLogModel(result, logContext, startTime);
             AuditLogContextUtil.remove();
         }
         return result;
     }
 
-    private void collectAuditLogModel(Object result, Throwable e, LogContext logContext, long startTime) {
+    private void collectAuditLogModel(Object result, LogContext logContext, long startTime) {
         MethodInvocation methodInvocation = logContext.getMethodInvocation();
         try {
             Method method = methodInvocation.getMethod();
@@ -79,9 +80,10 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             if (operateLog == null) {
                 return;
             }
-            if (notNeedAuditLog(operateLog, e, methodInvocation, result)) {
+            if (notNeedAuditLog(operateLog, logContext)) {
                 return;
             }
+            Throwable e = logContext.getE();
             long costTime = System.currentTimeMillis() - startTime;
             String logExp = operateLog.success();
             if (e != null && StringUtils.hasLength(operateLog.fail())) {
@@ -90,9 +92,9 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
             AuditLogModel operationLog = newAuditLogModel();
             operationLog.setBizType(operateLog.bizType());
             operationLog.setSubType(StringUtils.hasLength(operateLog.subBizType()) ? operateLog.subBizType() : null);
-            operationLog.setOperateObject(SpElUtil.autoEval(methodInvocation, operateLog.operateObject(), result));
-            operationLog.setOperateDesc(SpElUtil.autoEval(methodInvocation, logExp, result));
-            fillAuditLog(operationLog, methodInvocation, result, e, logContext, costTime);
+            operationLog.setOperateObject(SpElUtil.autoEval(operateLog.operateObject(), logContext));
+            operationLog.setOperateDesc(SpElUtil.autoEval(logExp, logContext));
+            fillAuditLog(operationLog, methodInvocation, e, logContext, costTime);
             auditLogCollector.collect(operationLog);
         } catch (Exception ex) {
             log.error("collectAuditLogModel error,methodInvocation:{},result:{}", methodInvocation, result, ex);
@@ -104,8 +106,9 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
     }
 
 
-    private boolean notNeedAuditLog(OperateLog logRecordAnno, Throwable e, MethodInvocation methodInvocation, Object result) {
+    private boolean notNeedAuditLog(OperateLog logRecordAnno, LogContext logContext) {
         Class<? extends Throwable>[] ignoreExceptions = logRecordAnno.ignoreException();
+        Throwable e = logContext.getE();
         if (e != null && ignoreExceptions != null && ignoreExceptions.length > 0) {
             for (Class<? extends Throwable> exceptionType : ignoreExceptions) {
                 if (exceptionType.isInstance(e)) {
@@ -115,13 +118,13 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         }
         String condition = logRecordAnno.condition();
         if (StringUtils.hasLength(condition)) {
-            Boolean conditionResult = SpElUtil.eval(methodInvocation, condition, result, Boolean.class);
+            Boolean conditionResult = SpElUtil.eval(condition, Boolean.class, logContext);
             return !(conditionResult != null && conditionResult);
         }
         return false;
     }
 
-    private void fillAuditLog(AuditLogModel operationLog, MethodInvocation methodInvocation, Object result, Throwable e, LogContext logContext, Long costTime) {
+    private void fillAuditLog(AuditLogModel operationLog, MethodInvocation methodInvocation, Throwable e, LogContext logContext, Long costTime) {
         operationLog.setCostTime(costTime);
         long now = System.currentTimeMillis();
         operationLog.setOperateTime(now);
@@ -150,8 +153,8 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
         Method method = methodInvocation.getMethod();
         LogDiff logDiff = method.getAnnotation(LogDiff.class);
         if (logDiff != null) {
-            before = getLogFieldValue(logDiff.before(), CONTEXT_KEY_BEFORE_OBJECT, logContext.getLogContextMap(), methodInvocation, result, Object.class);
-            after = getLogFieldValue(logDiff.after(), CONTEXT_KEY_AFTER_OBJECT, logContext.getLogContextMap(), methodInvocation, result, Object.class);
+            before = getLogFieldValue(logDiff.before(), CONTEXT_KEY_BEFORE_OBJECT, logContext, Object.class);
+            after = getLogFieldValue(logDiff.after(), CONTEXT_KEY_AFTER_OBJECT, logContext, Object.class);
             try {
                 if (Objects.equals(logDiff.diffHandler(), NoDiffHandler.class)) {
                     operationLog.setOperateDsl(NoDiffHandler.NO_DIFF_HANDLER.diff(before, after));
@@ -176,15 +179,15 @@ public class AuditLogMethodInterceptor implements MethodInterceptor, Application
     }
 
 
-    private <T> T getLogFieldValue(String exp, String contextKey, Map<String, Object> logContextMap, MethodInvocation methodInvocation, Object result, Class<T> evalReturnType) {
+    private <T> T getLogFieldValue(String exp, String contextKey, LogContext logContext, Class<T> evalReturnType) {
         T value = null;
         if (StringUtils.hasLength(exp)) {
-            value = SpElUtil.eval(methodInvocation, exp, result, evalReturnType);
+            value = SpElUtil.eval(exp, evalReturnType, logContext);
         }
         if (value != null) {
             return value;
         }
-        return AuditLogContextUtil.get(contextKey, logContextMap);
+        return AuditLogContextUtil.get(contextKey, logContext.getLogContextMap());
     }
 
     private ObjectDiffHandler getDiffHandlerFromSpring(Class<? extends ObjectDiffHandler> diffHandlerClass) {
